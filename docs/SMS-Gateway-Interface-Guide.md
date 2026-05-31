@@ -81,7 +81,8 @@ Prevalence tiers: **universal** (essentially every send-capable gateway), **comm
 | 9 | Long-message concatenation | universal | `SmsResult::getSegmentCount()` | All |
 | 10 | Flash / class-0 | common | `Message::getMessageClass()` / `CAP_FLASH` | Vonage, MessageBird, Sinch, SMPP |
 | 11 | Binary / UDH / WAP-push | niche | `BinaryContent` / `CAP_BINARY` | Vonage legacy, Sinch, Clickatell, SMPP |
-| 12 | MMS / media | common | `Message::getMediaUrls()` / `CAP_MMS` | Twilio, Telnyx, Plivo, Every8d |
+| 12 | MMS / media (outbound MT) | common | `Message::getMediaUrls()` / `CAP_MMS` | Twilio, Telnyx, Plivo, Every8d |
+| 12a | MMS / media (inbound MO) | common | `InboundMessageInterface::getMediaUrls()` / `CAP_INBOUND` | Twilio, Telnyx, Plivo |
 | 13 | Scheduled / deferred send | common | `SchedulableSmsClientInterface` | Twilio, Mitake, Sinch, Infobip |
 | 14 | Cancel / reschedule | niche | `SchedulableSmsClientInterface::cancel()` | Twilio, Sinch, Mitake, Every8d |
 | 15 | Validity period / TTL | common | `ValidityPeriod` | Twilio, Vonage, AWS, Mitake |
@@ -240,7 +241,8 @@ Each extension is segregated and capability-gated. A driver implements only the 
 
 1. The adapter **MUST** translate the list into the provider's native batch encoding (array / delimiter-packed / comma-joined / ClientID-prefixed lines / parallel arrays / per-recipient loop).
 2. The adapter **MUST** chunk transparently to the provider cap (Mitake: 500 records per `SmBulkSend` batch).
-3. The returned `SmsResultInterface[]` order **MUST** match the input order.
+3. The returned `SmsResultInterface[]` **MUST** be in input order and one-to-one with the input messages: the result at index *i* corresponds to `$messages[i]`, and `count($results) === count($messages)`.
+4. **Partial-failure model.** A per-recipient failure **MUST** be represented as a result whose `isSuccessful()` returns `false` (carrying its `getError()`), **NOT** by throwing. The method **MUST** throw only on a whole-batch / transport failure that prevented *any* per-recipient outcome (e.g. rejected credentials, a connection that never completed, a malformed batch the provider refused wholesale). When some recipients succeed and others fail, `sendBulk()` **MUST** return and let the caller inspect each result.
 
 ```php
 <?php
@@ -443,7 +445,15 @@ interface VerificationRecipientInterface
 {
     /** @return string the addressable value (E.164, email, etc.) */
     public function getValue();
-    /** @return string kind: 'phone'|'email'|'whatsapp' */
+    /**
+     * Recipient kind, so every channel has an expressible recipient. One of:
+     *   'phone'    — addressable by E.164 (the CHANNEL_SMS, CHANNEL_VOICE and
+     *                CHANNEL_SNA channels all reuse this kind),
+     *   'email'    — CHANNEL_EMAIL,
+     *   'whatsapp' — CHANNEL_WHATSAPP,
+     *   'rcs'      — CHANNEL_RCS.
+     * @return string 'phone'|'email'|'whatsapp'|'rcs'
+     */
     public function getKind();
 }
 
@@ -483,9 +493,8 @@ interface VerificationInterface
     const CHANNEL_EMAIL = 'email';
     const CHANNEL_WHATSAPP = 'whatsapp';
     const CHANNEL_RCS = 'rcs';
-    const CHANNEL_SNA = 'sna';
+    const CHANNEL_SNA = 'sna';      // silent network auth (the single SNA constant; do not add a duplicate)
     const CHANNEL_AUTO = 'auto';
-    const CHANNEL_SILENT_AUTH = 'silent_auth';
 
     // First-class option keys (instead of magic array keys)
     const OPT_CODE_LENGTH = 'code_length';
@@ -1438,9 +1447,47 @@ final class Money
 }
 ```
 
+### 6.1.1 `PointsCost`
+
+> Immutable, validated. Models a per-message cost expressed in **non-currency points** (Mitake `smsPoint`, Every8d credits), which `Money` cannot carry because `Money` is ISO-4217 3-letter-currency only. Carries the points value and an explicit unit label (default `'POINTS'`). A driver reports per-message cost as `Money` when the provider bills in currency, or as `PointsCost` when it bills in points; both `SmsResultInterface::getPrice()` (Money) and `SmsResultInterface::getPointsCost()` (PointsCost) are nullable and at most one is populated.
+
+```php
+<?php
+namespace Psr\Sms;
+
+use Psr\Sms\Exception\InvalidArgumentException;
+
+final class PointsCost
+{
+    private $points;
+    private $unit;
+
+    /**
+     * @param float|int|string $points >= 0
+     * @param string $unit Non-currency unit label, e.g. 'POINTS'.
+     * @throws InvalidArgumentException
+     */
+    public function __construct($points, $unit = 'POINTS')
+    {
+        if (!is_numeric($points)) {
+            throw new InvalidArgumentException('Points cost must be numeric.');
+        }
+        if (!is_string($unit) || $unit === '') {
+            throw new InvalidArgumentException('Points cost unit must be a non-empty string.');
+        }
+        $this->points = $points;
+        $this->unit = $unit;
+    }
+    /** @return float|int|string */
+    public function getPoints() { return $this->points; }
+    /** @return string */
+    public function getUnit() { return $this->unit; }
+}
+```
+
 ### 6.2 `SmsResultInterface`
 
-> Immutable send acknowledgement: provider id, accepted flag, optional inline status, typed price (`Money`), segment count, remaining balance (`Money`), duplicate flag (Mitake `clientid` 12h window → `Duplicate=Y`), per-segment sub-results (Vonage legacy splits one send into multiple results), network, and raw payload.
+> Immutable send acknowledgement: provider id, accepted flag, optional inline status, typed price (`Money`) and/or points cost (`PointsCost`), segment count, remaining balance (`Balance`, which models both ISO-4217 currency and non-currency points), duplicate flag (Mitake `clientid` 12h window → `Duplicate=Y`), per-segment sub-results (Vonage legacy splits one send into multiple results), network, and raw payload.
 
 ```php
 <?php
@@ -1452,13 +1499,17 @@ interface SmsResultInterface
     public function getMessageId();
     /** @return bool Whether this recipient was accepted. */
     public function isAccepted();
-    /** @return ErrorInfoInterface|null Canonical code + raw code; null on success. */
+    /** @return bool Whether this single result succeeded (provider accepted it and no error); false for a failed per-recipient result in a bulk send. */
+    public function isSuccessful();
+    /** @return ErrorInfoInterface|null Canonical code + raw code; null on success, set on a failed result. */
     public function getError();
     /** @return DeliveryStatusInterface|null Inline status (Mitake/Every8d). */
     public function getInlineStatus();
-    /** @return Money|null Per-message price; null if reported async. */
+    /** @return Money|null Per-message price in currency; null if billed in points or reported async. */
     public function getPrice();
-    /** @return Money|null Remaining account balance/credit if returned inline (Mitake AccountPoint). */
+    /** @return PointsCost|null Per-message cost in non-currency points (Mitake smsPoint); null if billed in currency. */
+    public function getPointsCost();
+    /** @return Balance|null Remaining account balance/credit if returned inline (Mitake AccountPoint); models currency or POINTS. */
     public function getRemainingBalance();
     /** @return int|null GSM-03.38 billed segment count. */
     public function getSegmentCount();
@@ -1533,7 +1584,7 @@ interface DeliveryStatusInterface
 
 ### 6.5 `InboundMessageInterface`
 
-> Immutable normalised MO: from, to, text, keyword (STOP/HELP/sub keyword), network, UDH, conversation id (threading), timestamp, raw payload, plus concat-reassembly metadata for providers that pre-split MO into separate webhook calls (Vonage concat-ref/part/total).
+> Immutable normalised MO: from, to, text, inbound MMS media URLs, keyword (STOP/HELP/sub keyword), network, UDH, conversation id (threading), timestamp, raw payload, plus concat-reassembly metadata for providers that pre-split MO into separate webhook calls (Vonage concat-ref/part/total).
 
 ```php
 <?php
@@ -1547,6 +1598,8 @@ interface InboundMessageInterface
     public function getTo();
     /** @return string Reassembled text. */
     public function getText();
+    /** @return string[] Inbound MMS media URLs; [] for a plain text MO. Parallels outbound Message::getMediaUrls(). */
+    public function getMediaUrls();
     /** @return string|null First keyword (STOP/HELP/sub keyword). */
     public function getKeyword();
     /** @return string|null Carrier id. */
@@ -1628,16 +1681,16 @@ namespace Psr\Sms;
 
 final class DeliveryState
 {
-    const QUEUED = 'queued';            // Mitake 0 scheduled
-    const SCHEDULED = 'scheduled';      // Mitake 0 (deferred)
+    const QUEUED = 'queued';            // no distinct Mitake source (Mitake 0 normalises to SCHEDULED)
+    const SCHEDULED = 'scheduled';      // Mitake 0 (deferred / awaiting dlvtime)
     const SENDING = 'sending';
     const SENT = 'sent';                // Mitake 1,2 to carrier
     const ACCEPTED = 'accepted';
     const DELIVERED = 'delivered';      // Mitake 4; DELIVRD
-    const UNDELIVERED = 'undelivered';  // Mitake 8 (network gave up); UNDELIV
+    const UNDELIVERED = 'undelivered';  // network gave up; UNDELIV (no distinct Mitake numeric)
     const FAILED = 'failed';            // Mitake 5,6,7; SYNTAXE
     const REJECTED = 'rejected';
-    const EXPIRED = 'expired';          // Mitake 8; EXPIRED
+    const EXPIRED = 'expired';          // Mitake 8; EXPIRED / UNDELIV
     const CANCELED = 'canceled';        // Mitake 9; DELETED
     const READ = 'read';                // RCS / WhatsApp
     const RECEIVING = 'receiving';
@@ -1763,6 +1816,17 @@ interface NetworkExceptionInterface extends SmsExceptionInterface {}
 <?php
 namespace Psr\Sms\Exception;
 
+/** Provider rejected the request because a rate / throughput / concurrency
+ *  limit was exceeded (Twilio 20429 / HTTP 429, Mitake `l` too-many-connections).
+ *  This is RETRYABLE after a back-off; the concrete class MAY expose a
+ *  provider-supplied retry-after hint. */
+interface RateLimitExceededExceptionInterface extends SmsExceptionInterface {}
+```
+
+```php
+<?php
+namespace Psr\Sms\Exception;
+
 /** Rejected credentials/disabled account (Mitake e=bad auth, f=expired).
  *  Not retryable without re-credentialing. */
 interface AuthenticationExceptionInterface extends SmsExceptionInterface {}
@@ -1820,6 +1884,33 @@ class NetworkException extends \RuntimeException implements NetworkExceptionInte
 <?php
 namespace Psr\Sms\Exception;
 
+/** Retryable rate/throughput/concurrency-limit failure. Carries an optional
+ *  provider-supplied retry-after hint (seconds). */
+class RateLimitExceededException extends \RuntimeException implements RateLimitExceededExceptionInterface
+{
+    private $retryAfter;
+
+    /**
+     * @param string $message
+     * @param int $code
+     * @param \Exception|null $previous
+     * @param int|null $retryAfter Seconds to wait before retrying, or null if unknown.
+     */
+    public function __construct($message = '', $code = 0, $previous = null, $retryAfter = null)
+    {
+        parent::__construct($message, $code, $previous);
+        $this->retryAfter = $retryAfter;
+    }
+
+    /** @return int|null Seconds to wait before retrying, or null if the provider gave no hint. */
+    public function getRetryAfter() { return $this->retryAfter; }
+}
+```
+
+```php
+<?php
+namespace Psr\Sms\Exception;
+
 class AuthenticationException extends \RuntimeException implements AuthenticationExceptionInterface {}
 ```
 
@@ -1858,8 +1949,11 @@ class UnsupportedCapabilityException extends \BadMethodCallException implements 
 A caller can:
 
 - `catch (\Psr\Sms\Exception\NetworkExceptionInterface $e)` to retry transient failures.
+- `catch (\Psr\Sms\Exception\RateLimitExceededExceptionInterface $e)` to back off (honouring `getRetryAfter()` when present) and retry.
 - `catch (\Psr\Sms\Exception\AuthenticationExceptionInterface $e)` to halt and re-credential.
 - `catch (\Psr\Sms\Exception\SmsExceptionInterface $e)` as the catch-all for anything this layer throws.
+
+> **Catch ordering note.** `RateLimitExceededExceptionInterface` extends `SmsExceptionInterface` directly (it is *not* a `NetworkExceptionInterface`), so a caller that wants distinct back-off behaviour **MUST** place its `catch` before the generic `SmsExceptionInterface` clause.
 
 ---
 
@@ -1970,9 +2064,9 @@ Maps `Message` to `SmSend` params. `CharsetURL = UTF8` is used so `smbody` is UR
 | `statuscode` mapped via §10.7 | `getInlineStatus()->getState()` |
 | `AccountPoint` | `getRemainingBalance()` → `new Balance($n, 'POINTS')` |
 | `Duplicate == 'Y'` | `isDuplicate()` → `true` |
-| `smsPoint` | (raw) → `getRawResponse()` |
+| `smsPoint` | `getPointsCost()` → `new PointsCost($n, 'POINTS')` (also retained in `getRawResponse()`) |
 
-Letter `statuscode` values are errors and **MUST** be thrown: `e` → `AuthenticationException` (bad auth), `f` → `AuthenticationException` (expired account), `v` → `InvalidArgumentException` (invalid mobile), `u` → `InvalidArgumentException` (empty body), `y` → `InvalidArgumentException` (param error), `z` → `SmsException` (no data), `l` → `NetworkException`-flavoured `SmsException` (too many connections — retryable).
+Letter `statuscode` values are errors and **MUST** be thrown: `e` → `AuthenticationException` (bad auth), `f` → `AuthenticationException` (expired account), `v` → `InvalidArgumentException` (invalid mobile), `u` → `InvalidArgumentException` (empty body), `y` → `InvalidArgumentException` (param error), `z` → `SmsException` (no data), `l` → `RateLimitExceededException` (too many connections — retryable; back off and retry).
 
 ### 10.4 `sendBulk()` → `SmBulkSend`
 
@@ -2040,7 +2134,7 @@ public function getAcknowledgement(\Psr\Sms\DeliveryStatusInterface $status)
 Drivers **SHOULD** compute segment count even when the provider does not return one, because billing is per segment.
 
 - **GSM-7 alphabet:** 160 chars per single SMS; 153 per concatenated part (7 bytes of the 140-byte payload go to the UDH).
-- **Extension characters** `^ { } \ [ ~ ] |` each consume **2** GSM-7 septets (they need a `0x1B` escape). A driver counting GSM-7 length **MUST** count each extension char as 2.
+- **Extension characters** `^ { } \ [ ~ ] | €` (the euro sign is a GSM-7 extension char) each consume **2** GSM-7 septets (they need a `0x1B` escape). A driver counting GSM-7 length **MUST** count each extension char as 2.
 - **UCS-2 (non-GSM-7 present):** a single non-GSM-7 character upgrades the *whole* message to UCS-2 → 70 chars single, 67 per concatenated part.
 - **Encoding `AUTO`:** the driver detects GSM-7 vs UCS-2 by scanning the body against the GSM-7 + extension table; any miss forces UCS-2.
 - **Mitake specifics:** long/concatenated SMS requires explicit account permission; without it, a body exceeding one short SMS is **truncated** to a single segment. A Mitake driver **SHOULD** warn (or refuse, via `InvalidArgumentException`) when a body exceeds one segment and concatenation is not enabled.
@@ -2049,22 +2143,35 @@ Reference GSM-7 length helper (PHP 5.4):
 
 ```php
 <?php
-// Returns the GSM-7 septet count, with extension chars counted as 2.
-function psr_sms_gsm7_length($text)
+namespace Psr\Sms;
+
+/** Illustrative, non-normative GSM-7 length helper (PHP 5.4-clean). */
+final class Gsm7
 {
-    $base = ' @£$¥èéùìòÇ' . "\n" . 'Øø' . "\r" . 'ÅåΔ_ΦΓΛΩΠΨΣΘΞ'
-          . 'ÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?'
-          . '¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
-    $ext = array('^', '{', '}', '\\', '[', '~', ']', '|', '€');
-    $count = 0;
-    $len = mb_strlen($text, 'UTF-8');
-    for ($i = 0; $i < $len; $i++) {
-        $ch = mb_substr($text, $i, 1, 'UTF-8');
-        if (in_array($ch, $ext, true)) { $count += 2; continue; }
-        if (mb_strpos($base, $ch, 0, 'UTF-8') !== false) { $count += 1; continue; }
-        return -1; // not GSM-7 representable -> caller MUST use UCS-2
+    private function __construct() {}
+
+    /**
+     * Returns the GSM-7 septet count, with extension chars counted as 2,
+     * or -1 when the text is not GSM-7 representable (caller MUST use UCS-2).
+     * @param string $text
+     * @return int
+     */
+    public static function length($text)
+    {
+        $base = ' @£$¥èéùìòÇ' . "\n" . 'Øø' . "\r" . 'ÅåΔ_ΦΓΛΩΠΨΣΘΞ'
+              . 'ÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?'
+              . '¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
+        $ext = array('^', '{', '}', '\\', '[', '~', ']', '|', '€');
+        $count = 0;
+        $len = mb_strlen($text, 'UTF-8');
+        for ($i = 0; $i < $len; $i++) {
+            $ch = mb_substr($text, $i, 1, 'UTF-8');
+            if (in_array($ch, $ext, true)) { $count += 2; continue; }
+            if (mb_strpos($base, $ch, 0, 'UTF-8') !== false) { $count += 1; continue; }
+            return -1; // not GSM-7 representable -> caller MUST use UCS-2
+        }
+        return $count;
     }
-    return $count;
 }
 ```
 
