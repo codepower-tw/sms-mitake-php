@@ -11,7 +11,7 @@
 | **Title** | SMS Gateway Interface |
 | **Proposed Namespace** | `Psr\Sms` |
 | **Status** | Draft / Proposed Standard |
-| **Target Runtime** | PHP 5.4+ (interfaces and reference value objects are PHP 5.4-clean) |
+| **Target Runtime** | PHP 8.1+ (uses native types, readonly value objects, and backed enums) |
 | **Editors' Lineage** | PSR-7 (immutable `with*()` messages), PSR-18 (single-method client + exception-interface hierarchy), Symfony Notifier (`supports()`) |
 | **Companion Concrete Driver** | Mitake (三竹簡訊) HTTP API v2.14 — used as the worked reference mapping |
 
@@ -48,7 +48,7 @@ The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **
 | **MO** | Mobile-originated message (handset → platform). The thing `InboundMessageReceiverInterface` ingests. |
 | **DLR** | Delivery Receipt — an asynchronous status update about a previously sent MT. |
 | **Segment** | One on-air SMS unit. GSM-7 packs 160 chars (153 in a concatenated part); UCS-2 packs 70 (67 concatenated). Billing is per segment. |
-| **Canonical state** | A `DeliveryState::*` constant — the single normalisation target for every provider's status vocabulary. |
+| **Canonical state** | A `DeliveryState` enum case — the single normalisation target for every provider's status vocabulary. |
 | **Capability** | A named, discoverable feature (`CAP_*`) advertised via `supports()`. |
 | **Core interface** | An interface graded `core` — every conformant driver MUST implement it. |
 | **Extension interface** | A segregated, capability-gated interface a driver implements only if the provider supports the behaviour. |
@@ -60,7 +60,7 @@ A caller **MUST NOT** be forced to depend on a method it does not use. Therefore
 
 ### 1.2 Immutability (PSR-7 spirit)
 
-All message and value objects are **immutable**. Mutators are `with*()` methods that **MUST** return a *clone* with the change applied and **MUST NOT** mutate the receiver. Validation **MUST** occur in `__construct()` and in every `with*()`. Once constructed, an instance is safe to share and to reuse across multiple `send()` calls.
+All message and value objects are **immutable**. Value objects use `readonly` promoted properties so the runtime itself enforces immutability after construction. Mutators are `with*()` methods that **MUST** return a *new instance* with the change applied and **MUST NOT** mutate the receiver. (Because `readonly` properties cannot be cloned-and-reassigned before PHP 8.3, each `with*()` constructs a fresh instance via `new self(...)` rather than `clone` + assignment.) Validation **MUST** occur in `__construct()` and in every `with*()`. Once constructed, an instance is safe to share and to reuse across multiple `send()` calls.
 
 ---
 
@@ -158,16 +158,15 @@ namespace Psr\Sms;
 interface SmsClientInterface
 {
     /**
-     * @param MessageInterface $message MUST be translated to provider wire shape;
-     *        recipient MUST be normalized; segment count SHOULD be forwarded.
-     * @return SmsResultInterface MUST carry provider id when given; MAY carry
-     *         inline status/price/balance (Mitake/Every8d).
+     * The recipient MUST be normalized to the provider wire shape and the segment
+     * count SHOULD be forwarded. The result MUST carry the provider id when given
+     * and MAY carry inline status/price/balance (Mitake/Every8d).
      * @throws Exception\InvalidArgumentExceptionInterface
      * @throws Exception\NetworkExceptionInterface
      * @throws Exception\AuthenticationExceptionInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function send(MessageInterface $message);
+    public function send(MessageInterface $message): SmsResultInterface;
 }
 ```
 
@@ -188,41 +187,41 @@ namespace Psr\Sms;
 
 interface CapabilityAwareInterface
 {
-    const CAP_BULK = 'bulk';
-    const CAP_STATUS_QUERY = 'status_query';
-    const CAP_DELIVERY_RECEIPT = 'delivery_receipt';
-    const CAP_INBOUND = 'inbound';
-    const CAP_SCHEDULE = 'schedule';
-    const CAP_CANCEL = 'cancel';
-    const CAP_BALANCE = 'balance';
-    const CAP_VERIFICATION = 'verification';
-    const CAP_FLASH = 'flash';
-    const CAP_BINARY = 'binary';
-    const CAP_MMS = 'mms';
-    const CAP_TEMPLATE = 'template';
+    public const CAP_BULK = 'bulk';
+    public const CAP_STATUS_QUERY = 'status_query';
+    public const CAP_DELIVERY_RECEIPT = 'delivery_receipt';
+    public const CAP_INBOUND = 'inbound';
+    public const CAP_SCHEDULE = 'schedule';
+    public const CAP_CANCEL = 'cancel';
+    public const CAP_BALANCE = 'balance';
+    public const CAP_VERIFICATION = 'verification';
+    public const CAP_FLASH = 'flash';
+    public const CAP_BINARY = 'binary';
+    public const CAP_MMS = 'mms';
+    public const CAP_TEMPLATE = 'template';
     // Added by refinement: the discovery vocabulary the gaps repeatedly need.
-    const CAP_IDEMPOTENCY = 'idempotency';
-    const CAP_MAX_PRICE = 'max_price';
-    const CAP_DRY_RUN = 'dry_run';
-    const CAP_MESSAGING_SERVICE = 'messaging_service';
-    const CAP_MULTICHANNEL = 'multichannel';
-    const CAP_MULTI_CHANNEL_FALLBACK = 'multi_channel_fallback';
-    const CAP_RCS = 'rcs';
-    const CAP_REDACT = 'redact';
-    const CAP_TOPIC_FANOUT = 'topic_fanout';
-    const CAP_ASYNC_BULK = 'async_bulk';
-    const CAP_HLR_LOOKUP = 'hlr_lookup';
-    const CAP_COST_REPORT = 'cost_report';
-    const CAP_MESSAGE_FEEDBACK = 'message_feedback';
-    const CAP_ACCOUNT_PREFS = 'account_prefs';
-    const CAP_TEMPLATE_REGISTRY = 'template_registry';
+    public const CAP_IDEMPOTENCY = 'idempotency';
+    public const CAP_MAX_PRICE = 'max_price';
+    public const CAP_DRY_RUN = 'dry_run';
+    public const CAP_MESSAGING_SERVICE = 'messaging_service';
+    public const CAP_MULTICHANNEL = 'multichannel';
+    public const CAP_MULTI_CHANNEL_FALLBACK = 'multi_channel_fallback';
+    public const CAP_RCS = 'rcs';
+    public const CAP_REDACT = 'redact';
+    public const CAP_TOPIC_FANOUT = 'topic_fanout';
+    public const CAP_ASYNC_BULK = 'async_bulk';
+    public const CAP_HLR_LOOKUP = 'hlr_lookup';
+    public const CAP_COST_REPORT = 'cost_report';
+    public const CAP_MESSAGE_FEEDBACK = 'message_feedback';
+    public const CAP_ACCOUNT_PREFS = 'account_prefs';
+    public const CAP_TEMPLATE_REGISTRY = 'template_registry';
 
     /**
      * @param string $capability One of CAP_*.
      * @return bool Callers MUST NOT invoke an extension unless true or
      *         instanceof confirms it.
      */
-    public function supports($capability);
+    public function supports(string $capability): bool;
 }
 ```
 
@@ -259,7 +258,7 @@ interface BulkSmsClientInterface extends SmsClientInterface
      * @throws Exception\InvalidArgumentExceptionInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function sendBulk(array $messages);
+    public function sendBulk(array $messages): array;
 }
 ```
 
@@ -281,12 +280,11 @@ namespace Psr\Sms;
 interface DeliveryStatusQueryInterface
 {
     /**
-     * @param string $messageId
-     * @return DeliveryStatusInterface MUST carry canonical state + raw code.
+     * The returned status MUST carry the canonical state + raw code.
      * @throws Exception\UnknownMessageExceptionInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function getStatus($messageId);
+    public function getStatus(string $messageId): DeliveryStatusInterface;
 
     /**
      * Batch (Mitake up to 100). MUST chunk transparently.
@@ -294,7 +292,7 @@ interface DeliveryStatusQueryInterface
      * @return DeliveryStatusInterface[] Keyed by id.
      * @throws Exception\SmsExceptionInterface
      */
-    public function getStatuses(array $messageIds);
+    public function getStatuses(array $messageIds): array;
 }
 ```
 
@@ -319,19 +317,16 @@ interface DeliveryReceiptParserInterface
      * @param array $serverParams Query/headers/body (Mitake GET callback via
      *        $_GET/$_SERVER). MUST verify authenticity.
      * @param string $rawBody Raw body for signature checks; '' if query-only.
-     * @return DeliveryStatusInterface
      * @throws Exception\WebhookVerificationExceptionInterface
      * @throws Exception\InvalidArgumentExceptionInterface
      */
-    public function parseReceipt(array $serverParams, $rawBody);
+    public function parseReceipt(array $serverParams, string $rawBody): DeliveryStatusInterface;
 
     /**
      * Body the caller MUST return to ack, or null for plain 200.
      * Mitake MUST be "magicid=sms_gateway_rpack\nmsgid=NNN\n".
-     * @param DeliveryStatusInterface $status
-     * @return string|null
      */
-    public function getAcknowledgement(DeliveryStatusInterface $status);
+    public function getAcknowledgement(DeliveryStatusInterface $status): ?string;
 }
 ```
 
@@ -355,22 +350,18 @@ interface InboundMessageReceiverInterface
     /**
      * Multipart SHOULD be reassembled by UDH ref+seq; MUST verify authenticity
      * where supported.
-     * @param array $serverParams
-     * @param string $rawBody
-     * @return InboundMessageInterface
      * @throws Exception\WebhookVerificationExceptionInterface
      * @throws Exception\InvalidArgumentExceptionInterface
      */
-    public function parseInbound(array $serverParams, $rawBody);
+    public function parseInbound(array $serverParams, string $rawBody): InboundMessageInterface;
 
     /**
      * Poll buffered MO (Kavenegar/Tencent/Infobip). Webhook-only MAY return [];
      * MAY be consume-once.
-     * @param int $limit
      * @return InboundMessageInterface[]
      * @throws Exception\SmsExceptionInterface
      */
-    public function pollInbound($limit = 100);
+    public function pollInbound(int $limit = 100): array;
 }
 ```
 
@@ -397,19 +388,16 @@ interface SchedulableSmsClientInterface extends SmsClientInterface
      * offset). Result MUST carry an id usable with cancel(). For Twilio the
      * Sender MUST be a messaging service; otherwise throw InvalidArgument.
      * @param MessageInterface $message getSchedule() MUST be non-null.
-     * @return SmsResultInterface
      * @throws Exception\InvalidArgumentExceptionInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function schedule(MessageInterface $message);
+    public function schedule(MessageInterface $message): SmsResultInterface;
 
     /**
      * Best-effort cancel (Mitake SmCancel up to 100). MAY fail if dispatched.
-     * @param string $messageId
-     * @return bool
      * @throws Exception\SmsExceptionInterface
      */
-    public function cancel($messageId);
+    public function cancel(string $messageId): bool;
 }
 ```
 
@@ -425,10 +413,9 @@ namespace Psr\Sms;
 interface BalanceInterface
 {
     /**
-     * @return Balance
      * @throws Exception\SmsExceptionInterface
      */
-    public function getBalance();
+    public function getBalance(): Balance;
 }
 ```
 
@@ -441,125 +428,122 @@ interface BalanceInterface
 <?php
 namespace Psr\Sms;
 
+/**
+ * Verification channel names. The SMS, VOICE and SNA channels are all
+ * addressable by E.164 (RecipientKind::PHONE); the remaining channels map to
+ * their own RecipientKind. SNA is silent network auth (the single SNA case;
+ * do not add a duplicate).
+ */
+enum VerificationChannelType: string
+{
+    case SMS = 'sms';
+    case VOICE = 'voice';
+    case EMAIL = 'email';
+    case WHATSAPP = 'whatsapp';
+    case RCS = 'rcs';
+    case SNA = 'sna';      // silent network auth (the single SNA case; do not add a duplicate)
+    case AUTO = 'auto';
+}
+
+/** Recipient kind, so every channel has an expressible recipient. */
+enum RecipientKind: string
+{
+    case PHONE = 'phone';        // addressable by E.164 (SMS, VOICE and SNA channels)
+    case EMAIL = 'email';        // EMAIL channel
+    case WHATSAPP = 'whatsapp';  // WHATSAPP channel
+    case RCS = 'rcs';            // RCS channel
+}
+
 interface VerificationRecipientInterface
 {
     /** @return string the addressable value (E.164, email, etc.) */
-    public function getValue();
-    /**
-     * Recipient kind, so every channel has an expressible recipient. One of:
-     *   'phone'    — addressable by E.164 (the CHANNEL_SMS, CHANNEL_VOICE and
-     *                CHANNEL_SNA channels all reuse this kind),
-     *   'email'    — CHANNEL_EMAIL,
-     *   'whatsapp' — CHANNEL_WHATSAPP,
-     *   'rcs'      — CHANNEL_RCS.
-     * @return string 'phone'|'email'|'whatsapp'|'rcs'
-     */
-    public function getKind();
+    public function getValue(): string;
+
+    /** Recipient kind, so every channel has an expressible recipient. */
+    public function getKind(): RecipientKind;
 }
 
 interface VerificationResultInterface
 {
     /** @return string canonical: pending|approved|canceled|expired|max_attempts */
-    public function getStatus();
-    /** @return bool */
-    public function isApproved();
+    public function getStatus(): string;
+    public function isApproved(): bool;
     /** @return string provider-native status */
-    public function getRawStatus();
+    public function getRawStatus(): string;
     /** @return string|int|null provider error code (fraud/locked vs wrong code) */
-    public function getErrorCode();
+    public function getErrorCode(): string|int|null;
     /** @return int|null attempts remaining */
-    public function getRemainingAttempts();
+    public function getRemainingAttempts(): ?int;
 }
 
 interface VerificationStartInterface
 {
     /** @return string verification id/sid */
-    public function getId();
-    /** @return string resolved channel actually used (auto fallback) */
-    public function getChannel();
+    public function getId(): string;
+    /** Resolved channel actually used (auto fallback). */
+    public function getChannel(): VerificationChannelType;
     /** @return string canonical status */
-    public function getStatus();
+    public function getStatus(): string;
     /** @return string|null SNA / silent-auth redirect/check URL */
-    public function getSnaUrl();
+    public function getSnaUrl(): ?string;
     /** @return array raw provider payload */
-    public function getRaw();
+    public function getRaw(): array;
 }
 
 interface VerificationInterface
 {
-    // Channels
-    const CHANNEL_SMS = 'sms';
-    const CHANNEL_VOICE = 'voice';
-    const CHANNEL_EMAIL = 'email';
-    const CHANNEL_WHATSAPP = 'whatsapp';
-    const CHANNEL_RCS = 'rcs';
-    const CHANNEL_SNA = 'sna';      // silent network auth (the single SNA constant; do not add a duplicate)
-    const CHANNEL_AUTO = 'auto';
-
     // First-class option keys (instead of magic array keys)
-    const OPT_CODE_LENGTH = 'code_length';
-    const OPT_CUSTOM_CODE = 'custom_code';
-    const OPT_EXPIRY = 'expiry';
-    const OPT_CHANNEL_TIMEOUT = 'channel_timeout';
-    const OPT_BRAND = 'brand';
-    const OPT_TEMPLATE_ID = 'template_id';
-    const OPT_TEMPLATE_SUBSTITUTIONS = 'template_substitutions';
-    const OPT_FRIENDLY_NAME = 'friendly_name';
-    const OPT_APP_HASH = 'app_hash';
-    const OPT_FRAUD_CHECK = 'fraud_check';
-    const OPT_RISK_CHECK = 'risk_check';
-    const OPT_RATE_LIMITS = 'rate_limits';
-    const OPT_TAGS = 'tags';
-    const OPT_CLIENT_REF = 'client_ref';
-    const OPT_LOCALE = 'locale';
-    const OPT_DEVICE_IP = 'device_ip';
-    const OPT_SNA_CLIENT_TOKEN = 'sna_client_token';
-    const OPT_WORKFLOW = 'workflow';
-    const OPT_TXN_AMOUNT = 'txn_amount';
-    const OPT_TXN_PAYEE = 'txn_payee';
+    public const OPT_CODE_LENGTH = 'code_length';
+    public const OPT_CUSTOM_CODE = 'custom_code';
+    public const OPT_EXPIRY = 'expiry';
+    public const OPT_CHANNEL_TIMEOUT = 'channel_timeout';
+    public const OPT_BRAND = 'brand';
+    public const OPT_TEMPLATE_ID = 'template_id';
+    public const OPT_TEMPLATE_SUBSTITUTIONS = 'template_substitutions';
+    public const OPT_FRIENDLY_NAME = 'friendly_name';
+    public const OPT_APP_HASH = 'app_hash';
+    public const OPT_FRAUD_CHECK = 'fraud_check';
+    public const OPT_RISK_CHECK = 'risk_check';
+    public const OPT_RATE_LIMITS = 'rate_limits';
+    public const OPT_TAGS = 'tags';
+    public const OPT_CLIENT_REF = 'client_ref';
+    public const OPT_LOCALE = 'locale';
+    public const OPT_DEVICE_IP = 'device_ip';
+    public const OPT_SNA_CLIENT_TOKEN = 'sna_client_token';
+    public const OPT_WORKFLOW = 'workflow';
+    public const OPT_TXN_AMOUNT = 'txn_amount';
+    public const OPT_TXN_PAYEE = 'txn_payee';
 
     /**
      * Start a verification. $to may be a phone or email recipient. For
      * multi-channel workflows pass an ordered VerificationChannel[] under
      * OPT_WORKFLOW (each carries its own channel + recipient).
-     * @param VerificationRecipientInterface $to
      * @param array $options keyed by OPT_* constants
-     * @return VerificationStartInterface
      * @throws Exception\VerificationExceptionInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function start(VerificationRecipientInterface $to, array $options = array());
+    public function start(VerificationRecipientInterface $to, array $options = []): VerificationStartInterface;
 
     /**
-     * @param string $verificationId
-     * @param string $code
-     * @return VerificationResultInterface
      * @throws Exception\VerificationExceptionInterface
      */
-    public function check($verificationId, $code);
+    public function check(string $verificationId, string $code): VerificationResultInterface;
 
     /**
      * Check by recipient when the id was not persisted (Twilio Code + To).
-     * @param VerificationRecipientInterface $to
-     * @param string $code
-     * @return VerificationResultInterface
      * @throws Exception\VerificationExceptionInterface
      */
-    public function checkByRecipient(VerificationRecipientInterface $to, $code);
+    public function checkByRecipient(VerificationRecipientInterface $to, string $code): VerificationResultInterface;
 
     /**
-     * @param string $verificationId
-     * @return bool
      * @throws Exception\SmsExceptionInterface
      */
-    public function cancel($verificationId);
+    public function cancel(string $verificationId): bool;
 
     /**
-     * @param string $verificationId
-     * @return VerificationStartInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function resend($verificationId);
+    public function resend(string $verificationId): VerificationStartInterface;
 }
 ```
 
@@ -571,37 +555,25 @@ interface VerificationInterface
 <?php
 namespace Psr\Sms;
 
-use Psr\Sms\Exception\InvalidArgumentException;
-
 final class VerificationChannel
 {
-    private $channel;
-    private $recipient;
-    private $extra;
-
     /**
-     * @param string $channel One of VerificationInterface::CHANNEL_*.
-     * @param VerificationRecipientInterface $recipient
+     * @param VerificationChannelType $channel The channel for this workflow step.
      * @param array $extra Per-channel fields (redirectUrl, from, appHash, templateId).
-     * @throws InvalidArgumentException
      */
-    public function __construct($channel, VerificationRecipientInterface $recipient, array $extra = array())
-    {
-        if (!is_string($channel) || $channel === '') {
-            throw new InvalidArgumentException('Verification channel must be a non-empty string.');
-        }
-        $this->channel = $channel;
-        $this->recipient = $recipient;
-        $this->extra = $extra;
+    public function __construct(
+        public readonly VerificationChannelType $channel,
+        public readonly VerificationRecipientInterface $recipient,
+        public readonly array $extra = []
+    ) {
     }
-    /** @return string */
-    public function getChannel() { return $this->channel; }
-    /** @return VerificationRecipientInterface */
-    public function getRecipient() { return $this->recipient; }
-    /** @param string $name @param mixed $default @return mixed */
-    public function get($name, $default = null) { return array_key_exists($name, $this->extra) ? $this->extra[$name] : $default; }
+
+    public function getChannel(): VerificationChannelType { return $this->channel; }
+    public function getRecipient(): VerificationRecipientInterface { return $this->recipient; }
+    /** @return mixed */
+    public function get(string $name, mixed $default = null): mixed { return array_key_exists($name, $this->extra) ? $this->extra[$name] : $default; }
     /** @return array */
-    public function all() { return $this->extra; }
+    public function all(): array { return $this->extra; }
 }
 ```
 
@@ -617,11 +589,9 @@ namespace Psr\Sms;
 interface RedactableInterface
 {
     /**
-     * @param string $messageId
-     * @return bool
      * @throws Exception\SmsExceptionInterface
      */
-    public function redact($messageId);
+    public function redact(string $messageId): bool;
 }
 
 /** CAP_ASYNC_BULK — Twilio Bulk operationId + poll-later. */
@@ -629,24 +599,21 @@ interface AsyncBulkInterface
 {
     /**
      * @param MessageInterface[] $messages
-     * @return BatchResultInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function sendBatch(array $messages);
+    public function sendBatch(array $messages): BatchResultInterface;
     /**
-     * @param string $batchId
-     * @return BatchResultInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function getBatchStatus($batchId);
+    public function getBatchStatus(string $batchId): BatchResultInterface;
 }
 
 interface BatchResultInterface
 {
     /** @return string provider operation/batch id */
-    public function getBatchId();
+    public function getBatchId(): string;
     /** @return string canonical batch state */
-    public function getStatus();
+    public function getStatus(): string;
 }
 
 /** CAP_TOPIC_FANOUT — AWS SNS topic fan-out. */
@@ -654,77 +621,66 @@ interface TopicPublishInterface
 {
     /**
      * @param string $topicTarget topic/ARN
-     * @param MessageInterface $m
-     * @return SmsResultInterface
      * @throws Exception\SmsExceptionInterface
      */
-    public function publishToTopic($topicTarget, MessageInterface $m);
+    public function publishToTopic(string $topicTarget, MessageInterface $m): SmsResultInterface;
 }
 
 /** CAP_HLR_LOOKUP — MessageBird HLR. */
 interface NumberLookupInterface
 {
     /**
-     * @param PhoneNumber $number
-     * @return LookupResult
      * @throws Exception\SmsExceptionInterface
      */
-    public function lookup(PhoneNumber $number);
+    public function lookup(PhoneNumber $number): LookupResult;
 }
 
 /** CAP_COST_REPORT — async per-message cost. */
 interface CostReportInterface
 {
     /**
-     * @param string $messageId
-     * @return Money|null
      * @throws Exception\SmsExceptionInterface
      */
-    public function getCost($messageId);
+    public function getCost(string $messageId): ?Money;
     /**
      * @param string[] $messageIds
      * @return array Money keyed by id.
      * @throws Exception\SmsExceptionInterface
      */
-    public function getCosts(array $messageIds);
+    public function getCosts(array $messageIds): array;
 }
 
 /** CAP_MESSAGE_FEEDBACK — AWS PutMessageFeedback / Sinch delivery_feedback. */
 interface MessageFeedbackInterface
 {
     /**
-     * @param string $messageId
      * @param string $status RECEIVED|FAILED
-     * @return bool
      * @throws Exception\SmsExceptionInterface
      */
-    public function putFeedback($messageId, $status);
+    public function putFeedback(string $messageId, string $status): bool;
 }
 
 /** CAP_ACCOUNT_PREFS — AWS SNS account-level SMS attributes. */
 interface AccountPreferencesInterface
 {
     /** @return array */
-    public function getSmsAttributes();
-    /** @param array $attributes @return void */
-    public function setSmsAttributes(array $attributes);
+    public function getSmsAttributes(): array;
+    public function setSmsAttributes(array $attributes): void;
 }
 
 /** CAP_TEMPLATE_REGISTRY — India DLT / CN template submit + status. */
 interface TemplateRegistryInterface
 {
     /**
-     * @param TemplateDefinition $tpl
      * @return string template id
      * @throws Exception\SmsExceptionInterface
      */
-    public function submitTemplate(TemplateDefinition $tpl);
+    public function submitTemplate(TemplateDefinition $tpl): string;
     /**
-     * @param string $templateId
      * @return string canonical approval status
      * @throws Exception\SmsExceptionInterface
      */
-    public function getTemplateStatus($templateId);
+    public function getTemplateStatus(string $templateId): string;
 }
 ```
 
@@ -742,10 +698,9 @@ interface SignatureVerifierInterface
      * @param array $params flattened request params (sorted internally)
      * @param string $signature provided sig
      * @param int|null $timestamp request timestamp for skew check
-     * @return bool
      * @throws Exception\WebhookVerificationExceptionInterface on mismatch or stale timestamp
      */
-    public function verify(array $params, $signature, $timestamp = null);
+    public function verify(array $params, string $signature, ?int $timestamp = null): bool;
 }
 ```
 
@@ -763,10 +718,9 @@ interface EventDestinationParserInterface
      * Parse an opaque push event (SNS notification, Kinesis record, CloudWatch
      * log entry) into a delivery status or inbound message.
      * @param string $rawEvent the raw event payload
-     * @return DeliveryStatusInterface|InboundMessageInterface
      * @throws Exception\WebhookVerificationExceptionInterface on auth failure
      */
-    public function parseEvent($rawEvent);
+    public function parseEvent(string $rawEvent): DeliveryStatusInterface|InboundMessageInterface;
 }
 ```
 
@@ -788,94 +742,72 @@ namespace Psr\Sms;
 interface MessageInterface
 {
     // --- Core addressing & payload ---------------------------------------
-    /** @return PhoneNumber */
-    public function getTo();
-    /** @return Sender|null */
-    public function getFrom();
+    public function getTo(): PhoneNumber;
+    public function getFrom(): ?Sender;
     /** @return string|null Null when templated. */
-    public function getBody();
-    /** @return bool */
-    public function isTemplated();
-    /** @return string|null */
-    public function getTemplateId();
-    /** @return string|null */
-    public function getSignName();
+    public function getBody(): ?string;
+    public function isTemplated(): bool;
+    public function getTemplateId(): ?string;
+    public function getSignName(): ?string;
     /** @return array name=>value */
-    public function getTemplateParams();
-    /** @return string One of Encoding::* */
-    public function getEncoding();
-    /** @return string One of MessageType::* */
-    public function getType();
-    /** @return ValidityPeriod|null */
-    public function getValidity();
-    /** @return Schedule|null */
-    public function getSchedule();
+    public function getTemplateParams(): array;
+    public function getEncoding(): Encoding;
+    public function getType(): MessageType;
+    public function getValidity(): ?ValidityPeriod;
+    public function getSchedule(): ?Schedule;
 
     // --- Cross-cutting optional getters (refinement) ----------------------
     /** @return string|null Native idempotency/dedup key (Twilio Idempotency-Key; Mitake clientid). */
-    public function getIdempotencyKey();
+    public function getIdempotencyKey(): ?string;
     /** @return string|null Per-message correlation tag echoed on the DLR (Vonage client_ref, <=100 chars). */
-    public function getClientRef();
+    public function getClientRef(): ?string;
     /** @return string|null Per-message delivery-status callback URL (Twilio StatusCallback; Mitake response). */
-    public function getStatusCallbackUrl();
+    public function getStatusCallbackUrl(): ?string;
     /** @return bool|null Whether a delivery receipt is requested; null = provider default. */
-    public function getDeliveryReceiptRequested();
+    public function getDeliveryReceiptRequested(): ?bool;
     /** @return int|null GSM message class 0-3 (0 = flash); null = default. */
-    public function getMessageClass();
+    public function getMessageClass(): ?int;
     /** @return bool Validate/estimate without dispatching; honored only when supports(CAP_DRY_RUN). */
-    public function isDryRun();
+    public function isDryRun(): bool;
     /** @return Money|null Per-message price ceiling; send fails if cost would exceed it. */
-    public function getMaxPrice();
+    public function getMaxPrice(): ?Money;
 
     // --- Rich / binary / template / multi-channel content -----------------
     /** @return string[] MMS/rich media URLs (gated CAP_MMS). */
-    public function getMediaUrls();
+    public function getMediaUrls(): array;
     /** @return BinaryContent|null UDH + protocol-id (gated CAP_BINARY). */
-    public function getBinary();
+    public function getBinary(): ?BinaryContent;
     /** @return TemplateReference|null id + variables (gated CAP_TEMPLATE, exclusive with body). */
-    public function getTemplate();
+    public function getTemplate(): ?TemplateReference;
     /** @return ChannelFallback|null Ordered multi-channel fallback (gated CAP_MULTI_CHANNEL_FALLBACK). */
-    public function getChannels();
+    public function getChannels(): ?ChannelFallback;
 
     // --- Compliance & escape hatch ---------------------------------------
-    /** @return ComplianceFieldsInterface|null */
-    public function getComplianceFields();
+    public function getComplianceFields(): ?ComplianceFieldsInterface;
     /** @return array Provider-namespaced escape hatch merged into the wire payload. */
-    public function getProviderOptions();
+    public function getProviderOptions(): array;
 
-    // --- Mutators (clone-on-write) ---------------------------------------
-    /** @param string $body @return MessageInterface Clone using body (clears template). */
-    public function withBody($body);
-    /** @param string $templateId @param array $params @param string|null $signName @return MessageInterface */
-    public function withTemplate($templateId, array $params = array(), $signName = null);
-    /** @param Sender $from @return MessageInterface */
-    public function withFrom(Sender $from);
-    /** @param string $encoding @return MessageInterface */
-    public function withEncoding($encoding);
-    /** @param string $type @return MessageInterface */
-    public function withType($type);
-    /** @param ValidityPeriod $validity @return MessageInterface */
-    public function withValidity(ValidityPeriod $validity);
-    /** @param Schedule $schedule @return MessageInterface */
-    public function withSchedule(Schedule $schedule);
-    /** @param string $key @return MessageInterface */
-    public function withIdempotencyKey($key);
-    /** @param string $ref @return MessageInterface */
-    public function withClientRef($ref);
-    /** @param string $url @return MessageInterface */
-    public function withStatusCallbackUrl($url);
-    /** @param Money $max @return MessageInterface */
-    public function withMaxPrice(Money $max);
-    /** @param ComplianceFieldsInterface $fields @return MessageInterface */
-    public function withComplianceFields(ComplianceFieldsInterface $fields);
-    /** @param array $options @return MessageInterface */
-    public function withProviderOptions(array $options);
+    // --- Mutators (new-instance-on-write) --------------------------------
+    /** Returns a new instance using $body (clears any template). */
+    public function withBody(string $body): MessageInterface;
+    public function withTemplate(string $templateId, array $params = [], ?string $signName = null): MessageInterface;
+    public function withFrom(Sender $from): MessageInterface;
+    public function withEncoding(Encoding $encoding): MessageInterface;
+    public function withType(MessageType $type): MessageInterface;
+    public function withValidity(ValidityPeriod $validity): MessageInterface;
+    public function withSchedule(Schedule $schedule): MessageInterface;
+    public function withIdempotencyKey(string $key): MessageInterface;
+    public function withClientRef(string $ref): MessageInterface;
+    public function withStatusCallbackUrl(string $url): MessageInterface;
+    public function withMaxPrice(Money $max): MessageInterface;
+    public function withComplianceFields(ComplianceFieldsInterface $fields): MessageInterface;
+    public function withProviderOptions(array $options): MessageInterface;
 }
 ```
 
 ### 5.2 `Message` — default immutable implementation
 
-> Validates the body/template XOR in `__construct()` and on every mutator. Defaults: `Encoding::AUTO`, `MessageType::TRANSACTIONAL`.
+> Validates the body/template XOR in the `create()` factory and on every mutator. Properties are `readonly`; each `with*()` rebuilds a fresh instance (readonly props cannot be cloned-and-reassigned before 8.3). Defaults: `Encoding::AUTO`, `MessageType::TRANSACTIONAL`.
 
 ```php
 <?php
@@ -885,143 +817,177 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 class Message implements MessageInterface
 {
-    private $to;
-    private $from;
-    private $body;
-    private $templateId;
-    private $signName;
-    private $templateParams = array();
-    private $encoding = Encoding::AUTO;
-    private $type = MessageType::TRANSACTIONAL;
-    private $validity;
-    private $schedule;
-    private $idempotencyKey;
-    private $clientRef;
-    private $statusCallbackUrl;
-    private $deliveryReceiptRequested;
-    private $messageClass;
-    private $dryRun = false;
-    private $maxPrice;
-    private $mediaUrls = array();
-    private $binary;
-    private $template;
-    private $channels;
-    private $compliance;
-    private $providerOptions = array();
+    /**
+     * The all-args constructor is private so the only public entry points are the
+     * two-arg constructor below (via the static factory) and the immutable with*()
+     * methods, which rebuild a fresh instance because readonly properties cannot be
+     * cloned-and-reassigned before PHP 8.3.
+     */
+    private function __construct(
+        private readonly PhoneNumber $to,
+        private readonly ?Sender $from = null,
+        private readonly ?string $body = null,
+        private readonly ?string $templateId = null,
+        private readonly ?string $signName = null,
+        private readonly array $templateParams = [],
+        private readonly Encoding $encoding = Encoding::AUTO,
+        private readonly MessageType $type = MessageType::TRANSACTIONAL,
+        private readonly ?ValidityPeriod $validity = null,
+        private readonly ?Schedule $schedule = null,
+        private readonly ?string $idempotencyKey = null,
+        private readonly ?string $clientRef = null,
+        private readonly ?string $statusCallbackUrl = null,
+        private readonly ?bool $deliveryReceiptRequested = null,
+        private readonly ?int $messageClass = null,
+        private readonly bool $dryRun = false,
+        private readonly ?Money $maxPrice = null,
+        private readonly array $mediaUrls = [],
+        private readonly ?BinaryContent $binary = null,
+        private readonly ?TemplateReference $template = null,
+        private readonly ?ChannelFallback $channels = null,
+        private readonly ?ComplianceFieldsInterface $compliance = null,
+        private readonly array $providerOptions = []
+    ) {
+    }
 
     /**
-     * @param PhoneNumber $to
      * @param string|null $body Non-empty string, or null for template mode.
      * @throws InvalidArgumentException
      */
-    public function __construct(PhoneNumber $to, $body = null)
+    public static function create(PhoneNumber $to, ?string $body = null): self
     {
-        if ($body !== null && !is_string($body)) {
-            throw new InvalidArgumentException('Body must be string or null.');
-        }
         if ($body === '') {
             throw new InvalidArgumentException('Body must not be empty; use a template or non-empty body.');
         }
-        $this->to = $to;
-        $this->body = $body;
+        return new self($to, null, $body);
     }
 
-    public function getTo() { return $this->to; }
-    public function getFrom() { return $this->from; }
-    public function getBody() { return $this->body; }
-    public function isTemplated() { return $this->templateId !== null || $this->template !== null; }
-    public function getTemplateId() { return $this->templateId; }
-    public function getSignName() { return $this->signName; }
-    public function getTemplateParams() { return $this->templateParams; }
-    public function getEncoding() { return $this->encoding; }
-    public function getType() { return $this->type; }
-    public function getValidity() { return $this->validity; }
-    public function getSchedule() { return $this->schedule; }
-    public function getIdempotencyKey() { return $this->idempotencyKey; }
-    public function getClientRef() { return $this->clientRef; }
-    public function getStatusCallbackUrl() { return $this->statusCallbackUrl; }
-    public function getDeliveryReceiptRequested() { return $this->deliveryReceiptRequested; }
-    public function getMessageClass() { return $this->messageClass; }
-    public function isDryRun() { return $this->dryRun; }
-    public function getMaxPrice() { return $this->maxPrice; }
-    public function getMediaUrls() { return $this->mediaUrls; }
-    public function getBinary() { return $this->binary; }
-    public function getTemplate() { return $this->template; }
-    public function getChannels() { return $this->channels; }
-    public function getComplianceFields() { return $this->compliance; }
-    public function getProviderOptions() { return $this->providerOptions; }
-
-    public function withBody($body)
+    /**
+     * Internal helper to rebuild with named overrides. Each with*() delegates here.
+     */
+    private function copyWith(array $overrides): self
     {
-        if (!is_string($body) || $body === '') {
+        return new self(
+            $overrides['to'] ?? $this->to,
+            array_key_exists('from', $overrides) ? $overrides['from'] : $this->from,
+            array_key_exists('body', $overrides) ? $overrides['body'] : $this->body,
+            array_key_exists('templateId', $overrides) ? $overrides['templateId'] : $this->templateId,
+            array_key_exists('signName', $overrides) ? $overrides['signName'] : $this->signName,
+            array_key_exists('templateParams', $overrides) ? $overrides['templateParams'] : $this->templateParams,
+            $overrides['encoding'] ?? $this->encoding,
+            $overrides['type'] ?? $this->type,
+            array_key_exists('validity', $overrides) ? $overrides['validity'] : $this->validity,
+            array_key_exists('schedule', $overrides) ? $overrides['schedule'] : $this->schedule,
+            array_key_exists('idempotencyKey', $overrides) ? $overrides['idempotencyKey'] : $this->idempotencyKey,
+            array_key_exists('clientRef', $overrides) ? $overrides['clientRef'] : $this->clientRef,
+            array_key_exists('statusCallbackUrl', $overrides) ? $overrides['statusCallbackUrl'] : $this->statusCallbackUrl,
+            array_key_exists('deliveryReceiptRequested', $overrides) ? $overrides['deliveryReceiptRequested'] : $this->deliveryReceiptRequested,
+            array_key_exists('messageClass', $overrides) ? $overrides['messageClass'] : $this->messageClass,
+            $overrides['dryRun'] ?? $this->dryRun,
+            array_key_exists('maxPrice', $overrides) ? $overrides['maxPrice'] : $this->maxPrice,
+            $overrides['mediaUrls'] ?? $this->mediaUrls,
+            array_key_exists('binary', $overrides) ? $overrides['binary'] : $this->binary,
+            array_key_exists('template', $overrides) ? $overrides['template'] : $this->template,
+            array_key_exists('channels', $overrides) ? $overrides['channels'] : $this->channels,
+            array_key_exists('compliance', $overrides) ? $overrides['compliance'] : $this->compliance,
+            $overrides['providerOptions'] ?? $this->providerOptions
+        );
+    }
+
+    public function getTo(): PhoneNumber { return $this->to; }
+    public function getFrom(): ?Sender { return $this->from; }
+    public function getBody(): ?string { return $this->body; }
+    public function isTemplated(): bool { return $this->templateId !== null || $this->template !== null; }
+    public function getTemplateId(): ?string { return $this->templateId; }
+    public function getSignName(): ?string { return $this->signName; }
+    public function getTemplateParams(): array { return $this->templateParams; }
+    public function getEncoding(): Encoding { return $this->encoding; }
+    public function getType(): MessageType { return $this->type; }
+    public function getValidity(): ?ValidityPeriod { return $this->validity; }
+    public function getSchedule(): ?Schedule { return $this->schedule; }
+    public function getIdempotencyKey(): ?string { return $this->idempotencyKey; }
+    public function getClientRef(): ?string { return $this->clientRef; }
+    public function getStatusCallbackUrl(): ?string { return $this->statusCallbackUrl; }
+    public function getDeliveryReceiptRequested(): ?bool { return $this->deliveryReceiptRequested; }
+    public function getMessageClass(): ?int { return $this->messageClass; }
+    public function isDryRun(): bool { return $this->dryRun; }
+    public function getMaxPrice(): ?Money { return $this->maxPrice; }
+    public function getMediaUrls(): array { return $this->mediaUrls; }
+    public function getBinary(): ?BinaryContent { return $this->binary; }
+    public function getTemplate(): ?TemplateReference { return $this->template; }
+    public function getChannels(): ?ChannelFallback { return $this->channels; }
+    public function getComplianceFields(): ?ComplianceFieldsInterface { return $this->compliance; }
+    public function getProviderOptions(): array { return $this->providerOptions; }
+
+    public function withBody(string $body): MessageInterface
+    {
+        if ($body === '') {
             throw new InvalidArgumentException('Body must be non-empty string.');
         }
-        $c = clone $this;
-        $c->body = $body;
-        $c->templateId = null;
-        $c->signName = null;
-        $c->templateParams = array();
-        $c->template = null;
-        return $c;
+        return $this->copyWith([
+            'body' => $body,
+            'templateId' => null,
+            'signName' => null,
+            'templateParams' => [],
+            'template' => null,
+        ]);
     }
 
-    public function withTemplate($templateId, array $params = array(), $signName = null)
+    public function withTemplate(string $templateId, array $params = [], ?string $signName = null): MessageInterface
     {
-        if (!is_string($templateId) || $templateId === '') {
+        if ($templateId === '') {
             throw new InvalidArgumentException('Template id must be non-empty string.');
         }
-        $c = clone $this;
-        $c->templateId = $templateId;
-        $c->templateParams = $params;
-        $c->signName = $signName;
-        $c->body = null;
-        return $c;
+        return $this->copyWith([
+            'templateId' => $templateId,
+            'templateParams' => $params,
+            'signName' => $signName,
+            'body' => null,
+        ]);
     }
 
-    public function withFrom(Sender $from) { $c = clone $this; $c->from = $from; return $c; }
+    public function withFrom(Sender $from): MessageInterface { return $this->copyWith(['from' => $from]); }
 
-    public function withEncoding($encoding)
+    public function withEncoding(Encoding $encoding): MessageInterface
     {
-        Encoding::assertValid($encoding);
-        $c = clone $this; $c->encoding = $encoding; return $c;
+        return $this->copyWith(['encoding' => $encoding]);
     }
 
-    public function withType($type)
+    public function withType(MessageType $type): MessageInterface
     {
-        MessageType::assertValid($type);
-        $c = clone $this; $c->type = $type; return $c;
+        return $this->copyWith(['type' => $type]);
     }
 
-    public function withValidity(ValidityPeriod $validity) { $c = clone $this; $c->validity = $validity; return $c; }
-    public function withSchedule(Schedule $schedule) { $c = clone $this; $c->schedule = $schedule; return $c; }
+    public function withValidity(ValidityPeriod $validity): MessageInterface { return $this->copyWith(['validity' => $validity]); }
+    public function withSchedule(Schedule $schedule): MessageInterface { return $this->copyWith(['schedule' => $schedule]); }
 
-    public function withIdempotencyKey($key)
+    public function withIdempotencyKey(string $key): MessageInterface
     {
-        if (!is_string($key) || $key === '') {
+        if ($key === '') {
             throw new InvalidArgumentException('Idempotency key must be non-empty string.');
         }
-        $c = clone $this; $c->idempotencyKey = $key; return $c;
+        return $this->copyWith(['idempotencyKey' => $key]);
     }
 
-    public function withClientRef($ref)
+    public function withClientRef(string $ref): MessageInterface
     {
-        if (!is_string($ref) || $ref === '' || strlen($ref) > 100) {
+        if ($ref === '' || strlen($ref) > 100) {
             throw new InvalidArgumentException('Client ref must be a non-empty string of at most 100 chars.');
         }
-        $c = clone $this; $c->clientRef = $ref; return $c;
+        return $this->copyWith(['clientRef' => $ref]);
     }
 
-    public function withStatusCallbackUrl($url)
+    public function withStatusCallbackUrl(string $url): MessageInterface
     {
-        if (!is_string($url) || $url === '') {
+        if ($url === '') {
             throw new InvalidArgumentException('Status callback URL must be a non-empty string.');
         }
-        $c = clone $this; $c->statusCallbackUrl = $url; return $c;
+        return $this->copyWith(['statusCallbackUrl' => $url]);
     }
 
-    public function withMaxPrice(Money $max) { $c = clone $this; $c->maxPrice = $max; return $c; }
-    public function withComplianceFields(ComplianceFieldsInterface $fields) { $c = clone $this; $c->compliance = $fields; return $c; }
-    public function withProviderOptions(array $options) { $c = clone $this; $c->providerOptions = $options; return $c; }
+    public function withMaxPrice(Money $max): MessageInterface { return $this->copyWith(['maxPrice' => $max]); }
+    public function withComplianceFields(ComplianceFieldsInterface $fields): MessageInterface { return $this->copyWith(['compliance' => $fields]); }
+    public function withProviderOptions(array $options): MessageInterface { return $this->copyWith(['providerOptions' => $options]); }
 }
 ```
 
@@ -1037,23 +1003,20 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 class PhoneNumber
 {
-    const FORMAT_E164 = 'e164';
-    const FORMAT_NATIONAL = 'national';
-    const FORMAT_SHORTCODE = 'shortcode';
+    public const FORMAT_E164 = 'e164';
+    public const FORMAT_NATIONAL = 'national';
+    public const FORMAT_SHORTCODE = 'shortcode';
 
-    private $value;
-    private $format;
+    public readonly string $value;
+    public readonly string $format;
 
     /**
      * @param string $value Display notation (space/dash/dot/parens) is stripped.
      * @param string $format One of FORMAT_*.
      * @throws InvalidArgumentException
      */
-    public function __construct($value, $format = self::FORMAT_E164)
+    public function __construct(string $value, string $format = self::FORMAT_E164)
     {
-        if (!is_string($value)) {
-            throw new InvalidArgumentException('Phone number must be a string.');
-        }
         $clean = preg_replace('/[\s().\-]/', '', $value);
         switch ($format) {
             case self::FORMAT_E164:
@@ -1078,12 +1041,9 @@ class PhoneNumber
         $this->format = $format;
     }
 
-    /** @return string */
-    public function getValue() { return $this->value; }
-    /** @return string */
-    public function getFormat() { return $this->format; }
-    /** @return string */
-    public function __toString() { return $this->value; }
+    public function getValue(): string { return $this->value; }
+    public function getFormat(): string { return $this->format; }
+    public function __toString(): string { return $this->value; }
 }
 ```
 
@@ -1099,54 +1059,41 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 final class Sender
 {
-    const KIND_NUMBER = 'number';
-    const KIND_ALPHANUMERIC = 'alphanumeric';
-    const KIND_MESSAGING_SERVICE = 'messaging_service';
-    const KIND_POOL = 'pool';
-    const KIND_ARN = 'arn';
-    const KIND_RCS_AGENT = 'rcs_agent';
-
-    private $kind;
-    private $value;
+    public const KIND_NUMBER = 'number';
+    public const KIND_ALPHANUMERIC = 'alphanumeric';
+    public const KIND_MESSAGING_SERVICE = 'messaging_service';
+    public const KIND_POOL = 'pool';
+    public const KIND_ARN = 'arn';
+    public const KIND_RCS_AGENT = 'rcs_agent';
 
     /**
      * @param string $kind One of KIND_*.
-     * @param string $value
      * @throws InvalidArgumentException
      */
-    private function __construct($kind, $value)
-    {
-        if (!is_string($value) || $value === '') {
+    private function __construct(
+        public readonly string $kind,
+        public readonly string $value
+    ) {
+        if ($value === '') {
             throw new InvalidArgumentException('Sender value must be a non-empty string.');
         }
         if ($kind === self::KIND_ALPHANUMERIC && strlen($value) > 11) {
             throw new InvalidArgumentException('Alphanumeric sender id must be at most 11 chars.');
         }
-        $this->kind = $kind;
-        $this->value = $value;
     }
 
-    /** @param string $e164 @return Sender */
-    public static function fromNumber($e164) { return new self(self::KIND_NUMBER, $e164); }
-    /** @param string $name @return Sender */
-    public static function fromAlphanumeric($name) { return new self(self::KIND_ALPHANUMERIC, $name); }
-    /** @param string $sid @return Sender */
-    public static function fromMessagingService($sid) { return new self(self::KIND_MESSAGING_SERVICE, $sid); }
-    /** @param string $poolId @return Sender */
-    public static function fromPool($poolId) { return new self(self::KIND_POOL, $poolId); }
-    /** @param string $arn @return Sender */
-    public static function fromArn($arn) { return new self(self::KIND_ARN, $arn); }
-    /** @param string $agentId @return Sender */
-    public static function fromRcsAgent($agentId) { return new self(self::KIND_RCS_AGENT, $agentId); }
+    public static function fromNumber(string $e164): self { return new self(self::KIND_NUMBER, $e164); }
+    public static function fromAlphanumeric(string $name): self { return new self(self::KIND_ALPHANUMERIC, $name); }
+    public static function fromMessagingService(string $sid): self { return new self(self::KIND_MESSAGING_SERVICE, $sid); }
+    public static function fromPool(string $poolId): self { return new self(self::KIND_POOL, $poolId); }
+    public static function fromArn(string $arn): self { return new self(self::KIND_ARN, $arn); }
+    public static function fromRcsAgent(string $agentId): self { return new self(self::KIND_RCS_AGENT, $agentId); }
 
     /** @return string one of the KIND_* constants */
-    public function getKind() { return $this->kind; }
-    /** @return string */
-    public function getValue() { return $this->value; }
-    /** @return bool */
-    public function isPool() { return $this->kind === self::KIND_POOL || $this->kind === self::KIND_MESSAGING_SERVICE; }
-    /** @return string */
-    public function __toString() { return $this->value; }
+    public function getKind(): string { return $this->kind; }
+    public function getValue(): string { return $this->value; }
+    public function isPool(): bool { return $this->kind === self::KIND_POOL || $this->kind === self::KIND_MESSAGING_SERVICE; }
+    public function __toString(): string { return $this->value; }
 }
 ```
 
@@ -1162,76 +1109,67 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 final class ValidityPeriod
 {
-    private $milliseconds;
-
     /**
-     * @param int $ms > 0
+     * @param int $milliseconds > 0
      * @throws InvalidArgumentException
      */
-    private function __construct($ms)
+    private function __construct(public readonly int $milliseconds)
     {
-        if (!is_int($ms) || $ms <= 0) {
+        if ($milliseconds <= 0) {
             throw new InvalidArgumentException('Validity must be a positive integer of milliseconds.');
         }
-        $this->milliseconds = $ms;
     }
 
-    /** @param int $seconds @return ValidityPeriod */
-    public static function fromSeconds($seconds)
+    public static function fromSeconds(int $seconds): self
     {
-        if (!is_int($seconds) || $seconds <= 0) {
+        if ($seconds <= 0) {
             throw new InvalidArgumentException('Seconds must be a positive integer.');
         }
         return new self($seconds * 1000);
     }
-    /** @param int $minutes @return ValidityPeriod */
-    public static function fromMinutes($minutes)
+    public static function fromMinutes(int $minutes): self
     {
-        if (!is_int($minutes) || $minutes <= 0) {
+        if ($minutes <= 0) {
             throw new InvalidArgumentException('Minutes must be a positive integer.');
         }
         return new self($minutes * 60 * 1000);
     }
-    /** @param int $hours @return ValidityPeriod */
-    public static function fromHours($hours)
+    public static function fromHours(int $hours): self
     {
-        if (!is_int($hours) || $hours <= 0) {
+        if ($hours <= 0) {
             throw new InvalidArgumentException('Hours must be a positive integer.');
         }
         return new self($hours * 3600 * 1000);
     }
-    /** @param int $ms @return ValidityPeriod */
-    public static function fromMilliseconds($ms) { return new self($ms); }
+    public static function fromMilliseconds(int $ms): self { return new self($ms); }
 
-    /** @return int */
-    public function toMilliseconds() { return $this->milliseconds; }
+    public function toMilliseconds(): int { return $this->milliseconds; }
     /** @return int rounded to whole seconds */
-    public function toSeconds() { return (int) round($this->milliseconds / 1000); }
-    /** @return int */
-    public function toMinutes() { return (int) floor($this->milliseconds / 60000); }
+    public function toSeconds(): int { return (int) round($this->milliseconds / 1000); }
+    public function toMinutes(): int { return (int) floor($this->milliseconds / 60000); }
 }
 ```
 
 ### 5.6 `Schedule`
 
-> Immutable deferred send time wrapping `\DateTime` (PHP 5.4 has no `\DateTimeInterface`). The driver formats it for the wire (Mitake `dlvtime` → `format('YmdHis')`). Defensive cloning prevents external mutation.
+> Immutable deferred send time accepting any `\DateTimeInterface`. The driver formats it for the wire (Mitake `dlvtime` → `format('YmdHis')`). The stored instance is `readonly`; since callers can pass a mutable `\DateTime`, the constructor still clones defensively (and re-clones on read) so external mutation cannot reach into the value object.
 
 ```php
 <?php
 namespace Psr\Sms;
 
-class Schedule
+final class Schedule
 {
-    private $when;
+    private readonly \DateTimeInterface $when;
 
-    /** @param \DateTime $when Future send time; cloned defensively. */
-    public function __construct(\DateTime $when) { $this->when = clone $when; }
+    /** @param \DateTimeInterface $when Future send time; cloned defensively. */
+    public function __construct(\DateTimeInterface $when) { $this->when = clone $when; }
 
-    /** @return \DateTime Defensive clone. */
-    public function getWhen() { return clone $this->when; }
+    /** @return \DateTimeInterface Defensive clone. */
+    public function getWhen(): \DateTimeInterface { return clone $this->when; }
 
-    /** @param string $format date() format, e.g. 'YmdHis' for Mitake. @return string */
-    public function format($format) { return $this->when->format($format); }
+    /** @param string $format date() format, e.g. 'YmdHis' for Mitake. */
+    public function format(string $format): string { return $this->when->format($format); }
 }
 ```
 
@@ -1247,31 +1185,24 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 final class BinaryContent
 {
-    private $body;
-    private $udh;
-    private $protocolId;
-
     /**
-     * @param string $bodyHex hex/byte payload
-     * @param string|null $udhHex User Data Header (hex)
+     * @param string $body hex/byte payload
+     * @param string|null $udh User Data Header (hex)
      * @param int|null $protocolId TP-PID
      * @throws InvalidArgumentException
      */
-    public function __construct($bodyHex, $udhHex = null, $protocolId = null)
-    {
-        if (!is_string($bodyHex) || $bodyHex === '') {
+    public function __construct(
+        public readonly string $body,
+        public readonly ?string $udh = null,
+        public readonly ?int $protocolId = null
+    ) {
+        if ($body === '') {
             throw new InvalidArgumentException('Binary body required.');
         }
-        $this->body = $bodyHex;
-        $this->udh = $udhHex;
-        $this->protocolId = $protocolId;
     }
-    /** @return string */
-    public function getBody() { return $this->body; }
-    /** @return string|null */
-    public function getUdh() { return $this->udh; }
-    /** @return int|null */
-    public function getProtocolId() { return $this->protocolId; }
+    public function getBody(): string { return $this->body; }
+    public function getUdh(): ?string { return $this->udh; }
+    public function getProtocolId(): ?int { return $this->protocolId; }
 }
 ```
 
@@ -1287,26 +1218,21 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 final class TemplateReference
 {
-    private $id;
-    private $variables;
-
     /**
-     * @param string $id
      * @param array $variables key/value bindings
      * @throws InvalidArgumentException
      */
-    public function __construct($id, array $variables = array())
-    {
-        if (!is_string($id) || $id === '') {
+    public function __construct(
+        public readonly string $id,
+        public readonly array $variables = []
+    ) {
+        if ($id === '') {
             throw new InvalidArgumentException('Template id required.');
         }
-        $this->id = $id;
-        $this->variables = $variables;
     }
-    /** @return string */
-    public function getId() { return $this->id; }
+    public function getId(): string { return $this->id; }
     /** @return array */
-    public function getVariables() { return $this->variables; }
+    public function getVariables(): array { return $this->variables; }
 }
 ```
 
@@ -1322,7 +1248,8 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 final class ChannelFallback
 {
-    private $channels;
+    /** @var string[] */
+    public readonly array $channels;
 
     /**
      * @param string[] $channels Ordered channel names (e.g. 'rcs','whatsapp','sms').
@@ -1341,7 +1268,7 @@ final class ChannelFallback
         $this->channels = array_values($channels);
     }
     /** @return string[] Ordered. */
-    public function getChannels() { return $this->channels; }
+    public function getChannels(): array { return $this->channels; }
 }
 ```
 
@@ -1356,19 +1283,19 @@ namespace Psr\Sms;
 interface ComplianceFieldsInterface
 {
     /** @return string|null registered content/template id */
-    public function getContentId();
+    public function getContentId(): ?string;
     /** @return string|null registered sender/principal entity id (DLT) */
-    public function getEntityId();
+    public function getEntityId(): ?string;
     /** @return string|null AWS Keyword / short-code program name */
-    public function getKeyword();
+    public function getKeyword(): ?string;
     /** @return string|null AWS ProtectConfigurationId */
-    public function getProtectConfigurationId();
+    public function getProtectConfigurationId(): ?string;
     /**
      * Open country-keyed registration parameters, e.g.
-     * array('IN_ENTITY_ID' => '...', 'IN_TEMPLATE_ID' => '...').
+     * ['IN_ENTITY_ID' => '...', 'IN_TEMPLATE_ID' => '...'].
      * @return array
      */
-    public function getCountryParameters();
+    public function getCountryParameters(): array;
 }
 ```
 
@@ -1376,32 +1303,32 @@ interface ComplianceFieldsInterface
 <?php
 namespace Psr\Sms;
 
-class ComplianceFields implements ComplianceFieldsInterface
+final class ComplianceFields implements ComplianceFieldsInterface
 {
-    private $contentId;
-    private $entityId;
-    private $keyword;
-    private $protectConfigurationId;
-    private $countryParameters;
+    private readonly ?string $contentId;
+    private readonly ?string $entityId;
+    private readonly ?string $keyword;
+    private readonly ?string $protectConfigurationId;
+    private readonly array $countryParameters;
 
     /**
      * @param array $fields keys: contentId, entityId, keyword,
      *        protectConfigurationId, countryParameters (array).
      */
-    public function __construct(array $fields = array())
+    public function __construct(array $fields = [])
     {
-        $this->contentId = isset($fields['contentId']) ? $fields['contentId'] : null;
-        $this->entityId = isset($fields['entityId']) ? $fields['entityId'] : null;
-        $this->keyword = isset($fields['keyword']) ? $fields['keyword'] : null;
-        $this->protectConfigurationId = isset($fields['protectConfigurationId']) ? $fields['protectConfigurationId'] : null;
+        $this->contentId = $fields['contentId'] ?? null;
+        $this->entityId = $fields['entityId'] ?? null;
+        $this->keyword = $fields['keyword'] ?? null;
+        $this->protectConfigurationId = $fields['protectConfigurationId'] ?? null;
         $this->countryParameters = isset($fields['countryParameters']) && is_array($fields['countryParameters'])
-            ? $fields['countryParameters'] : array();
+            ? $fields['countryParameters'] : [];
     }
-    public function getContentId() { return $this->contentId; }
-    public function getEntityId() { return $this->entityId; }
-    public function getKeyword() { return $this->keyword; }
-    public function getProtectConfigurationId() { return $this->protectConfigurationId; }
-    public function getCountryParameters() { return $this->countryParameters; }
+    public function getContentId(): ?string { return $this->contentId; }
+    public function getEntityId(): ?string { return $this->entityId; }
+    public function getKeyword(): ?string { return $this->keyword; }
+    public function getProtectConfigurationId(): ?string { return $this->protectConfigurationId; }
+    public function getCountryParameters(): array { return $this->countryParameters; }
 }
 ```
 
@@ -1421,29 +1348,28 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 final class Money
 {
-    private $amount;
-    private $currency;
+    public readonly string $currency;
 
     /**
      * @param string|float|int $amount
      * @param string $currency 3-letter ISO-4217 code.
      * @throws InvalidArgumentException
      */
-    public function __construct($amount, $currency)
-    {
+    public function __construct(
+        public readonly string|float|int $amount,
+        string $currency
+    ) {
         if (!is_numeric($amount)) {
             throw new InvalidArgumentException('Money amount must be numeric.');
         }
-        if (!is_string($currency) || strlen($currency) !== 3) {
+        if (strlen($currency) !== 3) {
             throw new InvalidArgumentException('Money currency must be a 3-letter ISO-4217 code.');
         }
-        $this->amount = $amount;
         $this->currency = strtoupper($currency);
     }
     /** @return string|float|int */
-    public function getAmount() { return $this->amount; }
-    /** @return string */
-    public function getCurrency() { return $this->currency; }
+    public function getAmount(): string|float|int { return $this->amount; }
+    public function getCurrency(): string { return $this->currency; }
 }
 ```
 
@@ -1459,29 +1385,25 @@ use Psr\Sms\Exception\InvalidArgumentException;
 
 final class PointsCost
 {
-    private $points;
-    private $unit;
-
     /**
      * @param float|int|string $points >= 0
      * @param string $unit Non-currency unit label, e.g. 'POINTS'.
      * @throws InvalidArgumentException
      */
-    public function __construct($points, $unit = 'POINTS')
-    {
+    public function __construct(
+        public readonly float|int|string $points,
+        public readonly string $unit = 'POINTS'
+    ) {
         if (!is_numeric($points)) {
             throw new InvalidArgumentException('Points cost must be numeric.');
         }
-        if (!is_string($unit) || $unit === '') {
+        if ($unit === '') {
             throw new InvalidArgumentException('Points cost unit must be a non-empty string.');
         }
-        $this->points = $points;
-        $this->unit = $unit;
     }
     /** @return float|int|string */
-    public function getPoints() { return $this->points; }
-    /** @return string */
-    public function getUnit() { return $this->unit; }
+    public function getPoints(): float|int|string { return $this->points; }
+    public function getUnit(): string { return $this->unit; }
 }
 ```
 
@@ -1496,31 +1418,31 @@ namespace Psr\Sms;
 interface SmsResultInterface
 {
     /** @return string|null Provider message id (Mitake msgid). */
-    public function getMessageId();
+    public function getMessageId(): ?string;
     /** @return bool Whether this recipient was accepted. */
-    public function isAccepted();
+    public function isAccepted(): bool;
     /** @return bool Whether this single result succeeded (provider accepted it and no error); false for a failed per-recipient result in a bulk send. */
-    public function isSuccessful();
+    public function isSuccessful(): bool;
     /** @return ErrorInfoInterface|null Canonical code + raw code; null on success, set on a failed result. */
-    public function getError();
+    public function getError(): ?ErrorInfoInterface;
     /** @return DeliveryStatusInterface|null Inline status (Mitake/Every8d). */
-    public function getInlineStatus();
+    public function getInlineStatus(): ?DeliveryStatusInterface;
     /** @return Money|null Per-message price in currency; null if billed in points or reported async. */
-    public function getPrice();
+    public function getPrice(): ?Money;
     /** @return PointsCost|null Per-message cost in non-currency points (Mitake smsPoint); null if billed in currency. */
-    public function getPointsCost();
+    public function getPointsCost(): ?PointsCost;
     /** @return Balance|null Remaining account balance/credit if returned inline (Mitake AccountPoint); models currency or POINTS. */
-    public function getRemainingBalance();
+    public function getRemainingBalance(): ?Balance;
     /** @return int|null GSM-03.38 billed segment count. */
-    public function getSegmentCount();
+    public function getSegmentCount(): ?int;
     /** @return string|null MCCMNC carrier/network code. */
-    public function getNetwork();
+    public function getNetwork(): ?string;
     /** @return bool Mitake Duplicate=Y. */
-    public function isDuplicate();
+    public function isDuplicate(): bool;
     /** @return SmsResultInterface[] Per-segment sub-results; [] if not split. */
-    public function getParts();
+    public function getParts(): array;
     /** @return array Raw provider payload. */
-    public function getRawResponse();
+    public function getRawResponse(): array;
 }
 ```
 
@@ -1535,11 +1457,11 @@ namespace Psr\Sms;
 interface ErrorInfoInterface
 {
     /** @return string Canonical error category. */
-    public function getCanonicalCode();
+    public function getCanonicalCode(): string;
     /** @return string|int Raw provider code. */
-    public function getRawCode();
+    public function getRawCode(): string|int;
     /** @return string|null Human-readable reason. */
-    public function getMessage();
+    public function getMessage(): ?string;
 }
 ```
 
@@ -1553,32 +1475,28 @@ namespace Psr\Sms;
 
 interface DeliveryStatusInterface
 {
-    /** @return string|null */
-    public function getMessageId();
-    /** @return string One of DeliveryState::* */
-    public function getState();
+    public function getMessageId(): ?string;
+    public function getState(): DeliveryState;
     /** @return string|int|null Raw provider code (Mitake numeric or statusstr). */
-    public function getProviderCode();
+    public function getProviderCode(): string|int|null;
     /** @return string|int|null Alias of provider-native status/error code. */
-    public function getRawCode();
-    /** @return PhoneNumber|null */
-    public function getRecipient();
-    /** @return \DateTime|null Receipt timestamp / scts. */
-    public function getTimestamp();
+    public function getRawCode(): string|int|null;
+    public function getRecipient(): ?PhoneNumber;
+    /** @return \DateTimeInterface|null Receipt timestamp / scts. */
+    public function getTimestamp(): ?\DateTimeInterface;
     /** @return string|null Failure reason. */
-    public function getReason();
+    public function getReason(): ?string;
     /** @return string|null Original send correlation tag (clientRef). */
-    public function getClientRef();
+    public function getClientRef(): ?string;
     /** @return int|null Realized billed segment count (Vonage count_total). */
-    public function getSegmentCount();
+    public function getSegmentCount(): ?int;
     /** @return string|null 'carrier' or 'handset' (Vonage DLR type). */
-    public function getReceiptType();
+    public function getReceiptType(): ?string;
     /** @return RecipientStatusInterface[] Per-recipient sub-statuses (MessageBird); [] if single. */
-    public function getRecipientStatuses();
+    public function getRecipientStatuses(): array;
     /** @return bool Terminal state. */
-    public function isFinal();
-    /** @return bool */
-    public function isDelivered();
+    public function isFinal(): bool;
+    public function isDelivered(): bool;
 }
 ```
 
@@ -1592,35 +1510,32 @@ namespace Psr\Sms;
 
 interface InboundMessageInterface
 {
-    /** @return PhoneNumber */
-    public function getFrom();
+    public function getFrom(): PhoneNumber;
     /** @return PhoneNumber|Sender */
-    public function getTo();
+    public function getTo(): PhoneNumber|Sender;
     /** @return string Reassembled text. */
-    public function getText();
+    public function getText(): string;
     /** @return string[] Inbound MMS media URLs; [] for a plain text MO. Parallels outbound Message::getMediaUrls(). */
-    public function getMediaUrls();
+    public function getMediaUrls(): array;
     /** @return string|null First keyword (STOP/HELP/sub keyword). */
-    public function getKeyword();
+    public function getKeyword(): ?string;
     /** @return string|null Carrier id. */
-    public function getNetwork();
+    public function getNetwork(): ?string;
     /** @return string|null Hex UDH for binary/concatenated MO. */
-    public function getUdh();
+    public function getUdh(): ?string;
     /** @return string|null Stable thread/session id. */
-    public function getConversationId();
-    /** @return \DateTime|null */
-    public function getTimestamp();
+    public function getConversationId(): ?string;
+    public function getTimestamp(): ?\DateTimeInterface;
     // --- Concat reassembly across separate webhook calls (refinement) ---
-    /** @return bool */
-    public function isMultipart();
+    public function isMultipart(): bool;
     /** @return string|null Shared reference across parts. */
-    public function getConcatReference();
+    public function getConcatReference(): ?string;
     /** @return int|null 1-based part index. */
-    public function getConcatPart();
+    public function getConcatPart(): ?int;
     /** @return int|null Total number of parts. */
-    public function getConcatTotal();
+    public function getConcatTotal(): ?int;
     /** @return array Raw payload. */
-    public function getRawPayload();
+    public function getRawPayload(): array;
 }
 ```
 
@@ -1634,11 +1549,9 @@ namespace Psr\Sms;
 
 use Psr\Sms\Exception\InvalidArgumentException;
 
-class Balance
+final class Balance
 {
-    private $amount;
-    private $unit;
-    private $autoReload;
+    public readonly float $amount;
 
     /**
      * @param float|int|string $amount >= 0
@@ -1646,136 +1559,100 @@ class Balance
      * @param bool $autoReload Whether the account auto-reloads credit.
      * @throws InvalidArgumentException
      */
-    public function __construct($amount, $unit = 'POINTS', $autoReload = false)
-    {
+    public function __construct(
+        float|int|string $amount,
+        public readonly string $unit = 'POINTS',
+        public readonly bool $autoReload = false
+    ) {
         if (!is_numeric($amount)) {
             throw new InvalidArgumentException('Balance amount must be numeric.');
         }
-        if (!is_string($unit) || $unit === '') {
+        if ($unit === '') {
             throw new InvalidArgumentException('Balance unit must be a non-empty string.');
         }
         $this->amount = (float) $amount;
-        $this->unit = $unit;
-        $this->autoReload = (bool) $autoReload;
     }
-    /** @return float */
-    public function getAmount() { return $this->amount; }
-    /** @return string */
-    public function getUnit() { return $this->unit; }
-    /** @return bool */
-    public function isAutoReload() { return $this->autoReload; }
+    public function getAmount(): float { return $this->amount; }
+    public function getUnit(): string { return $this->unit; }
+    public function isAutoReload(): bool { return $this->autoReload; }
 }
 ```
 
 ---
 
-## 7. Constant Holders (no enums on 5.4)
+## 7. Enumerations
+
+These are string-backed `enum`s. They are type-safe by construction, so there is no `assertValid()` — pass the enum case directly, or normalise an external string via `DeliveryState::tryFrom()` / `from()`. To enumerate all cases use the built-in `DeliveryState::cases()`.
 
 ### 7.1 `DeliveryState`
 
-> Canonical delivery-lifecycle constants — the single normalisation target. Mitake mapping noted per constant.
+> Canonical delivery-lifecycle states — the single normalisation target. Mitake mapping noted per case.
 
 ```php
 <?php
 namespace Psr\Sms;
 
-final class DeliveryState
+enum DeliveryState: string
 {
-    const QUEUED = 'queued';            // no distinct Mitake source (Mitake 0 normalises to SCHEDULED)
-    const SCHEDULED = 'scheduled';      // Mitake 0 (deferred / awaiting dlvtime)
-    const SENDING = 'sending';
-    const SENT = 'sent';                // Mitake 1,2 to carrier
-    const ACCEPTED = 'accepted';
-    const DELIVERED = 'delivered';      // Mitake 4; DELIVRD
-    const UNDELIVERED = 'undelivered';  // network gave up; UNDELIV (no distinct Mitake numeric)
-    const FAILED = 'failed';            // Mitake 5,6,7; SYNTAXE
-    const REJECTED = 'rejected';
-    const EXPIRED = 'expired';          // Mitake 8; EXPIRED / UNDELIV
-    const CANCELED = 'canceled';        // Mitake 9; DELETED
-    const READ = 'read';                // RCS / WhatsApp
-    const RECEIVING = 'receiving';
-    const RECEIVED = 'received';
-    const UNKNOWN = 'unknown';          // Mitake UNKNOWN
+    case QUEUED = 'queued';            // no distinct Mitake source (Mitake 0 normalises to SCHEDULED)
+    case SCHEDULED = 'scheduled';      // Mitake 0 (deferred / awaiting dlvtime)
+    case SENDING = 'sending';
+    case SENT = 'sent';                // Mitake 1,2 to carrier
+    case ACCEPTED = 'accepted';
+    case DELIVERED = 'delivered';      // Mitake 4; DELIVRD
+    case UNDELIVERED = 'undelivered';  // network gave up; UNDELIV (no distinct Mitake numeric)
+    case FAILED = 'failed';            // Mitake 5,6,7; SYNTAXE
+    case REJECTED = 'rejected';
+    case EXPIRED = 'expired';          // Mitake 8; EXPIRED / UNDELIV
+    case CANCELED = 'canceled';        // Mitake 9; DELETED
+    case READ = 'read';                // RCS / WhatsApp
+    case RECEIVING = 'receiving';
+    case RECEIVED = 'received';
+    case UNKNOWN = 'unknown';          // Mitake UNKNOWN
 
-    private function __construct() {}
-
-    /** @return string[] */
-    public static function all()
+    /** @return bool Whether this is a terminal state. */
+    public function isFinal(): bool
     {
-        return array(
-            self::QUEUED, self::SCHEDULED, self::SENDING, self::SENT, self::ACCEPTED,
-            self::DELIVERED, self::UNDELIVERED, self::FAILED, self::REJECTED,
-            self::EXPIRED, self::CANCELED, self::READ, self::RECEIVING,
-            self::RECEIVED, self::UNKNOWN,
-        );
-    }
-
-    /** @param string $state @return bool */
-    public static function isFinal($state)
-    {
-        return in_array($state, array(
-            self::DELIVERED, self::UNDELIVERED, self::FAILED, self::REJECTED,
-            self::EXPIRED, self::CANCELED,
-        ), true);
+        return match ($this) {
+            self::DELIVERED, self::UNDELIVERED, self::FAILED,
+            self::REJECTED, self::EXPIRED, self::CANCELED => true,
+            default => false,
+        };
     }
 }
 ```
 
 ### 7.2 `Encoding`
 
-> On-air alphabet (GSM 03.38 / TS 23.038) with validation.
+> On-air alphabet (GSM 03.38 / TS 23.038).
 
 ```php
 <?php
 namespace Psr\Sms;
 
-use Psr\Sms\Exception\InvalidArgumentException;
-
-final class Encoding
+enum Encoding: string
 {
-    const AUTO = 'auto';    // provider-side GSM-vs-Unicode detection (Vonage encoding_type=auto)
-    const GSM7 = 'gsm7';
-    const UCS2 = 'ucs2';
-    const BINARY = 'binary';
-
-    private function __construct() {}
-
-    /** @param string $encoding @throws InvalidArgumentException @return void */
-    public static function assertValid($encoding)
-    {
-        if (!in_array($encoding, array(self::AUTO, self::GSM7, self::UCS2, self::BINARY), true)) {
-            throw new InvalidArgumentException('Unknown encoding: ' . $encoding);
-        }
-    }
+    case AUTO = 'auto';    // provider-side GSM-vs-Unicode detection (Vonage encoding_type=auto)
+    case GSM7 = 'gsm7';
+    case UCS2 = 'ucs2';
+    case BINARY = 'binary';
 }
 ```
 
 ### 7.3 `MessageType`
 
-> Route-class with validation.
+> Route-class.
 
 ```php
 <?php
 namespace Psr\Sms;
 
-use Psr\Sms\Exception\InvalidArgumentException;
-
-final class MessageType
+enum MessageType: string
 {
-    const TRANSACTIONAL = 'transactional';
-    const PROMOTIONAL = 'promotional';
-    const OTP = 'otp';
-    const FLASH = 'flash';
-
-    private function __construct() {}
-
-    /** @param string $type @throws InvalidArgumentException @return void */
-    public static function assertValid($type)
-    {
-        if (!in_array($type, array(self::TRANSACTIONAL, self::PROMOTIONAL, self::OTP, self::FLASH), true)) {
-            throw new InvalidArgumentException('Unknown message type: ' . $type);
-        }
-    }
+    case TRANSACTIONAL = 'transactional';
+    case PROMOTIONAL = 'promotional';
+    case OTP = 'otp';
+    case FLASH = 'flash';
 }
 ```
 
@@ -1783,7 +1660,7 @@ final class MessageType
 
 ## 8. Exception Hierarchy
 
-> Following PSR-18: **marker interfaces** form the catch hierarchy; **concrete classes** extend SPL exceptions so they are `\Throwable` at runtime without an interface needing to extend `\Throwable` (which is 7.0+ and would break 5.4). A conformant driver **MUST** throw only exceptions implementing `SmsExceptionInterface`.
+> Following PSR-18: **marker interfaces** form the catch hierarchy and **concrete classes** extend SPL exceptions. The root marker `SmsExceptionInterface` extends `\Throwable` so callers can type-hint and `catch` the marker directly (the PSR-18 style); every concrete class still extends an SPL exception (`\RuntimeException`, `\InvalidArgumentException`, …) and so is a `\Throwable` at runtime. A conformant driver **MUST** throw only exceptions implementing `SmsExceptionInterface`.
 
 ### 8.1 Marker interfaces
 
@@ -1792,8 +1669,9 @@ final class MessageType
 namespace Psr\Sms\Exception;
 
 /** Marker implemented by every exception thrown by an SMS PSR impl.
- *  Concrete classes MUST extend an SPL exception. */
-interface SmsExceptionInterface {}
+ *  Extends \Throwable so callers can catch the marker directly; concrete
+ *  classes MUST extend an SPL exception. */
+interface SmsExceptionInterface extends \Throwable {}
 ```
 
 ```php
@@ -1888,22 +1766,20 @@ namespace Psr\Sms\Exception;
  *  provider-supplied retry-after hint (seconds). */
 class RateLimitExceededException extends \RuntimeException implements RateLimitExceededExceptionInterface
 {
-    private $retryAfter;
-
     /**
-     * @param string $message
-     * @param int $code
-     * @param \Exception|null $previous
      * @param int|null $retryAfter Seconds to wait before retrying, or null if unknown.
      */
-    public function __construct($message = '', $code = 0, $previous = null, $retryAfter = null)
-    {
+    public function __construct(
+        string $message = '',
+        int $code = 0,
+        ?\Throwable $previous = null,
+        private readonly ?int $retryAfter = null
+    ) {
         parent::__construct($message, $code, $previous);
-        $this->retryAfter = $retryAfter;
     }
 
     /** @return int|null Seconds to wait before retrying, or null if the provider gave no hint. */
-    public function getRetryAfter() { return $this->retryAfter; }
+    public function getRetryAfter(): ?int { return $this->retryAfter; }
 }
 ```
 
@@ -2028,11 +1904,11 @@ Mitake expects national TW format (`0912345678`). The driver normalises before b
 
 ```php
 // inside MitakeClient
-private function toDstaddr(\Psr\Sms\PhoneNumber $to)
+private function toDstaddr(\Psr\Sms\PhoneNumber $to): string
 {
     $v = $to->getValue();                 // already display-stripped by VO
     $v = ltrim($v, '+');
-    $v = str_replace(array('.', '-', ' '), '', $v);
+    $v = str_replace(['.', '-', ' '], '', $v);
     if (strpos($v, '88609') === 0) { $v = '8869' . substr($v, 5); }
     if (strpos($v, '886') === 0)   { $v = '0' . substr($v, 3); }   // E.164 -> national
     return $v;
@@ -2101,7 +1977,7 @@ Status normalisation (`statuscode` / `StatusFlag` and `statusstr` → `DeliveryS
 The client **MUST** reply HTTP 200, `text/plain`, body exactly `"magicid=sms_gateway_rpack\nmsgid=NNN\n"` — produced by `getAcknowledgement()`:
 
 ```php
-public function getAcknowledgement(\Psr\Sms\DeliveryStatusInterface $status)
+public function getAcknowledgement(\Psr\Sms\DeliveryStatusInterface $status): ?string
 {
     return "magicid=sms_gateway_rpack\nmsgid=" . $status->getMessageId() . "\n";
 }
@@ -2139,13 +2015,13 @@ Drivers **SHOULD** compute segment count even when the provider does not return 
 - **Encoding `AUTO`:** the driver detects GSM-7 vs UCS-2 by scanning the body against the GSM-7 + extension table; any miss forces UCS-2.
 - **Mitake specifics:** long/concatenated SMS requires explicit account permission; without it, a body exceeding one short SMS is **truncated** to a single segment. A Mitake driver **SHOULD** warn (or refuse, via `InvalidArgumentException`) when a body exceeds one segment and concatenation is not enabled.
 
-Reference GSM-7 length helper (PHP 5.4):
+Reference GSM-7 length helper:
 
 ```php
 <?php
 namespace Psr\Sms;
 
-/** Illustrative, non-normative GSM-7 length helper (PHP 5.4-clean). */
+/** Illustrative, non-normative GSM-7 length helper. */
 final class Gsm7
 {
     private function __construct() {}
@@ -2153,15 +2029,13 @@ final class Gsm7
     /**
      * Returns the GSM-7 septet count, with extension chars counted as 2,
      * or -1 when the text is not GSM-7 representable (caller MUST use UCS-2).
-     * @param string $text
-     * @return int
      */
-    public static function length($text)
+    public static function length(string $text): int
     {
         $base = ' @£$¥èéùìòÇ' . "\n" . 'Øø' . "\r" . 'ÅåΔ_ΦΓΛΩΠΨΣΘΞ'
               . 'ÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?'
               . '¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà';
-        $ext = array('^', '{', '}', '\\', '[', '~', ']', '|', '€');
+        $ext = ['^', '{', '}', '\\', '[', '~', ']', '|', '€'];
         $count = 0;
         $len = mb_strlen($text, 'UTF-8');
         for ($i = 0; $i < $len; $i++) {
