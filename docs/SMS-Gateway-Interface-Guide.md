@@ -28,7 +28,7 @@ This specification deliberately does **NOT**:
 - Provide a service locator, DI container binding, or framework integration.
 - Standardise rich-channel (RCS/WhatsApp/Viber) interactive payloads beyond a capability flag and an optional fallback value object.
 - Perform out-of-band regulatory registration (India DLT template approval, US 10DLC brand/campaign registration, China template+signature approval). Those are *state* and *out-of-band* operations; this spec only carries the **per-message compliance fields** that regulated routes require.
-- Implement a scheduler for providers that lack native scheduling. A driver that does not advertise `CAP_SCHEDULE` simply does not implement `SchedulableSmsClientInterface`.
+- Implement a scheduler for providers that lack native scheduling. A driver that does not advertise `Capability::SCHEDULE` simply does not implement `SchedulableSmsClientInterface`.
 
 ### 0.3 Why Single-Send Is the Only Core
 
@@ -49,7 +49,7 @@ The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **
 | **DLR** | Delivery Receipt — an asynchronous status update about a previously sent MT. |
 | **Segment** | One on-air SMS unit. GSM-7 packs 160 chars (153 in a concatenated part); UCS-2 packs 70 (67 concatenated). Billing is per segment. |
 | **Canonical state** | A `DeliveryState` enum case — the single normalisation target for every provider's status vocabulary. |
-| **Capability** | A named, discoverable feature (`CAP_*`) advertised via `supports()`. |
+| **Capability** | A named, discoverable feature (a `Capability` enum case) advertised via `supports()`. |
 | **Core interface** | An interface graded `core` — every conformant driver MUST implement it. |
 | **Extension interface** | A segregated, capability-gated interface a driver implements only if the provider supports the behaviour. |
 | **Conformant driver** | A class that implements at minimum `SmsClientInterface` and `CapabilityAwareInterface`, throwing only exceptions implementing `Psr\Sms\Exception\SmsExceptionInterface`. |
@@ -79,17 +79,17 @@ Prevalence tiers: **universal** (essentially every send-capable gateway), **comm
 | 7 | Sender pool / sticky / geomatch | common | `Sender::fromPool()` / `fromMessagingService()` | Twilio, Plivo, Telnyx, AWS EUM, MessageBird |
 | 8 | Encoding (GSM-7 / UCS-2 / auto) | universal | `Encoding` | All |
 | 9 | Long-message concatenation | universal | `SmsResult::getSegmentCount()` | All |
-| 10 | Flash / class-0 | common | `Message::getMessageClass()` / `CAP_FLASH` | Vonage, MessageBird, Sinch, SMPP |
-| 11 | Binary / UDH / WAP-push | niche | `BinaryContent` / `CAP_BINARY` | Vonage legacy, Sinch, Clickatell, SMPP |
-| 12 | MMS / media (outbound MT) | common | `Message::getMediaUrls()` / `CAP_MMS` | Twilio, Telnyx, Plivo, Every8d |
-| 12a | MMS / media (inbound MO) | common | `InboundMessageInterface::getMediaUrls()` / `CAP_INBOUND` | Twilio, Telnyx, Plivo |
+| 10 | Flash / class-0 | common | `Message::getMessageClass()` / `Capability::FLASH` | Vonage, MessageBird, Sinch, SMPP |
+| 11 | Binary / UDH / WAP-push | niche | `BinaryContent` / `Capability::BINARY` | Vonage legacy, Sinch, Clickatell, SMPP |
+| 12 | MMS / media (outbound MT) | common | `Message::getMediaUrls()` / `Capability::MMS` | Twilio, Telnyx, Plivo, Every8d |
+| 12a | MMS / media (inbound MO) | common | `InboundMessageInterface::getMediaUrls()` / `Capability::INBOUND` | Twilio, Telnyx, Plivo |
 | 13 | Scheduled / deferred send | common | `SchedulableSmsClientInterface` | Twilio, Mitake, Sinch, Infobip |
 | 14 | Cancel / reschedule | niche | `SchedulableSmsClientInterface::cancel()` | Twilio, Sinch, Mitake, Every8d |
 | 15 | Validity period / TTL | common | `ValidityPeriod` | Twilio, Vonage, AWS, Mitake |
 | 16 | Delivery time-window | niche | `Message::getProviderOptions()` + compliance | Infobip, Karix, Tencent |
-| 17 | Dry-run / cost estimate | niche | `Message::isDryRun()` / `CAP_DRY_RUN` | AWS EUM, Sinch, Infobip |
+| 17 | Dry-run / cost estimate | niche | `Message::isDryRun()` / `Capability::DRY_RUN` | AWS EUM, Sinch, Infobip |
 | 18 | Idempotency / correlation | common | `Message::getIdempotencyKey()` / `getClientRef()` | Twilio, Vonage, Mitake (clientid) |
-| 19 | Max-price cap | niche | `Message::getMaxPrice()` / `CAP_MAX_PRICE` | Twilio, AWS |
+| 19 | Max-price cap | niche | `Message::getMaxPrice()` / `Capability::MAX_PRICE` | Twilio, AWS |
 | 20 | Message-type / route class | common | `MessageType` | AWS, Kaleyra, Plivo, Alibaba, Tencent |
 | 21 | DLR via webhook | universal | `DeliveryReceiptParserInterface` | All major |
 | 22 | DLR via poll | common | `DeliveryStatusQueryInterface` | Twilio, Mitake, Every8d, Tencent |
@@ -118,15 +118,15 @@ Prevalence tiers: **universal** (essentially every send-capable gateway), **comm
 | 45 | Template/signature/sender-ID lifecycle | niche | `TemplateRegistryInterface` | India DLT, Alibaba, Tencent |
 | 46 | Per-message regulatory fields | common | `ComplianceFieldsInterface` | India DLT, Vonage, AWS EUM |
 | 47 | Country-aware sender selection | niche | application state | GDPR, India DLT |
-| 48 | Multi-channel send + SMS fallback | niche | `ChannelFallback` VO / `CAP_MULTICHANNEL` | Twilio, Infobip OMNI |
+| 48 | Multi-channel send + SMS fallback | niche | `ChannelFallback` VO / `Capability::MULTICHANNEL` | Twilio, Infobip OMNI |
 | 49 | Rich interactive content | niche | `MultiChannelInterface` (out of scope v1) | RCS, WhatsApp |
 | 50 | Channel reachability check | niche | (out of scope v1) | RCS, WhatsApp |
 | 51 | Session-window billing | niche | (out of scope v1) | WhatsApp, Viber |
 | 52 | Link shortening & tracking | niche | `Message::getProviderOptions()` | Twilio, MSG91, Karix |
-| 53 | Content redaction / PII logging | niche | `RedactableInterface` / `CAP_REDACT` | Twilio, Plivo, AWS |
+| 53 | Content redaction / PII logging | niche | `RedactableInterface` / `Capability::REDACT` | Twilio, Plivo, AWS |
 | 54 | Fraud / risk controls | niche | `Message::getProviderOptions()` | Twilio, Vonage |
 | 55 | Queued / async dispatch | niche | `AsyncBulkInterface` / library concern | Laravel Vonage, Twilio Bulk |
-| 56 | HLR / number lookup | niche | `NumberLookupInterface` / `CAP_HLR_LOOKUP` | MessageBird |
+| 56 | HLR / number lookup | niche | `NumberLookupInterface` / `Capability::HLR_LOOKUP` | MessageBird |
 | 57 | Topic fan-out / pub-sub | niche | `TopicPublishInterface` | AWS SNS |
 | 58 | Account preferences | niche | `AccountPreferencesInterface` | AWS SNS |
 | 59 | Push-only event ingestion | niche | `EventDestinationParserInterface` | AWS EUM v2 |
@@ -177,7 +177,7 @@ interface SmsClientInterface
 **Rules.**
 
 1. A driver **MUST** implement `supports()`.
-2. A caller **MUST NOT** invoke an extension operation unless `supports()` returns `true` for the corresponding `CAP_*` constant **OR** an `instanceof` check against the extension interface confirms support.
+2. A caller **MUST NOT** invoke an extension operation unless `supports()` returns `true` for the corresponding `Capability` case **OR** an `instanceof` check against the extension interface confirms support.
 3. If a caller invokes an unsupported extension anyway, the driver **SHOULD** throw `UnsupportedCapabilityException`.
 4. `supports()` **MUST** be free of side effects.
 
@@ -185,43 +185,45 @@ interface SmsClientInterface
 <?php
 namespace Psr\Sms;
 
+enum Capability: string
+{
+    case BULK = 'bulk';
+    case STATUS_QUERY = 'status_query';
+    case DELIVERY_RECEIPT = 'delivery_receipt';
+    case INBOUND = 'inbound';
+    case SCHEDULE = 'schedule';
+    case CANCEL = 'cancel';
+    case BALANCE = 'balance';
+    case VERIFICATION = 'verification';
+    case FLASH = 'flash';
+    case BINARY = 'binary';
+    case MMS = 'mms';
+    case TEMPLATE = 'template';
+    // Added by refinement: the discovery vocabulary the gaps repeatedly need.
+    case IDEMPOTENCY = 'idempotency';
+    case MAX_PRICE = 'max_price';
+    case DRY_RUN = 'dry_run';
+    case MESSAGING_SERVICE = 'messaging_service';
+    case MULTICHANNEL = 'multichannel';
+    case MULTI_CHANNEL_FALLBACK = 'multi_channel_fallback';
+    case RCS = 'rcs';
+    case REDACT = 'redact';
+    case TOPIC_FANOUT = 'topic_fanout';
+    case ASYNC_BULK = 'async_bulk';
+    case HLR_LOOKUP = 'hlr_lookup';
+    case COST_REPORT = 'cost_report';
+    case MESSAGE_FEEDBACK = 'message_feedback';
+    case ACCOUNT_PREFS = 'account_prefs';
+    case TEMPLATE_REGISTRY = 'template_registry';
+}
+
 interface CapabilityAwareInterface
 {
-    public const CAP_BULK = 'bulk';
-    public const CAP_STATUS_QUERY = 'status_query';
-    public const CAP_DELIVERY_RECEIPT = 'delivery_receipt';
-    public const CAP_INBOUND = 'inbound';
-    public const CAP_SCHEDULE = 'schedule';
-    public const CAP_CANCEL = 'cancel';
-    public const CAP_BALANCE = 'balance';
-    public const CAP_VERIFICATION = 'verification';
-    public const CAP_FLASH = 'flash';
-    public const CAP_BINARY = 'binary';
-    public const CAP_MMS = 'mms';
-    public const CAP_TEMPLATE = 'template';
-    // Added by refinement: the discovery vocabulary the gaps repeatedly need.
-    public const CAP_IDEMPOTENCY = 'idempotency';
-    public const CAP_MAX_PRICE = 'max_price';
-    public const CAP_DRY_RUN = 'dry_run';
-    public const CAP_MESSAGING_SERVICE = 'messaging_service';
-    public const CAP_MULTICHANNEL = 'multichannel';
-    public const CAP_MULTI_CHANNEL_FALLBACK = 'multi_channel_fallback';
-    public const CAP_RCS = 'rcs';
-    public const CAP_REDACT = 'redact';
-    public const CAP_TOPIC_FANOUT = 'topic_fanout';
-    public const CAP_ASYNC_BULK = 'async_bulk';
-    public const CAP_HLR_LOOKUP = 'hlr_lookup';
-    public const CAP_COST_REPORT = 'cost_report';
-    public const CAP_MESSAGE_FEEDBACK = 'message_feedback';
-    public const CAP_ACCOUNT_PREFS = 'account_prefs';
-    public const CAP_TEMPLATE_REGISTRY = 'template_registry';
-
     /**
-     * @param string $capability One of CAP_*.
      * @return bool Callers MUST NOT invoke an extension unless true or
      *         instanceof confirms it.
      */
-    public function supports(string $capability): bool;
+    public function supports(Capability $capability): bool;
 }
 ```
 
@@ -231,7 +233,7 @@ interface CapabilityAwareInterface
 
 Each extension is segregated and capability-gated. A driver implements only the ones its provider supports.
 
-### 4.1 `BulkSmsClientInterface` — grade: **extension** — `CAP_BULK`
+### 4.1 `BulkSmsClientInterface` — grade: **extension** — `Capability::BULK`
 
 > **Covers:** bulk/batch send (#2), per-recipient personalisation (#3).
 > **Why segregated:** common but not universal. A *list of Messages* expresses both plain bulk (identical bodies) and personalisation (distinct params) without a second method.
@@ -262,10 +264,10 @@ interface BulkSmsClientInterface extends SmsClientInterface
 }
 ```
 
-### 4.2 `DeliveryStatusQueryInterface` — grade: **extension** — `CAP_STATUS_QUERY`
+### 4.2 `DeliveryStatusQueryInterface` — grade: **extension** — `Capability::STATUS_QUERY`
 
 > **Covers:** DLR poll (#22), status normalisation (#24), cost/segment reporting (#36).
-> **Why segregated:** polling is common but not universal (SMPP is push-only; AWS EUM v2 is event-only and advertises `CAP_STATUS_QUERY = false`).
+> **Why segregated:** polling is common but not universal (SMPP is push-only; AWS EUM v2 is event-only and has `supports(Capability::STATUS_QUERY) === false`).
 
 **Rules.**
 
@@ -296,7 +298,7 @@ interface DeliveryStatusQueryInterface
 }
 ```
 
-### 4.3 `DeliveryReceiptParserInterface` — grade: **extension** — `CAP_DELIVERY_RECEIPT`
+### 4.3 `DeliveryReceiptParserInterface` — grade: **extension** — `Capability::DELIVERY_RECEIPT`
 
 > **Covers:** DLR webhook (#21), status normalisation (#24), webhook signature verification (#40), cost/segment reporting (#36), feedback conversion (#25).
 > **Why segregated:** parsing a callback is a distinct contract from both `send()` and from MO ingestion. Some providers need a specific ack body (Mitake's `magicid`).
@@ -330,7 +332,7 @@ interface DeliveryReceiptParserInterface
 }
 ```
 
-### 4.4 `InboundMessageReceiverInterface` — grade: **extension** — `CAP_INBOUND`
+### 4.4 `InboundMessageReceiverInterface` — grade: **extension** — `Capability::INBOUND`
 
 > **Covers:** inbound MO (#26), two-way conversation (#27), MO reassembly (#28), premium subscription (#55-style).
 > **Why segregated:** two-way is optional and absent on many one-way TW/CN providers (including Mitake).
@@ -365,7 +367,7 @@ interface InboundMessageReceiverInterface
 }
 ```
 
-### 4.5 `SchedulableSmsClientInterface` — grade: **extension** — `CAP_SCHEDULE` (+ `CAP_CANCEL`)
+### 4.5 `SchedulableSmsClientInterface` — grade: **extension** — `Capability::SCHEDULE` (+ `Capability::CANCEL`)
 
 > **Covers:** scheduled send (#13), cancel/reschedule (#14), validity/TTL (#15), delivery window (#16).
 > **Why segregated & gated:** AWS SNS and CN clouds have no native scheduling; cancel is niche and meaningless without scheduling, so they share one interface.
@@ -401,7 +403,7 @@ interface SchedulableSmsClientInterface extends SmsClientInterface
 }
 ```
 
-### 4.6 `BalanceInterface` — grade: **extension** — `CAP_BALANCE`
+### 4.6 `BalanceInterface` — grade: **extension** — `Capability::BALANCE`
 
 > **Covers:** balance/credit query (#35).
 > **Why gated:** common on TW/regional providers, absent on CN clouds and AWS (billing console only). Per-message *cost* rides on `SmsResult`/`DeliveryStatus`, not here.
@@ -419,7 +421,7 @@ interface BalanceInterface
 }
 ```
 
-### 4.7 `VerificationInterface` — grade: **extension** — `CAP_VERIFICATION`
+### 4.7 `VerificationInterface` — grade: **extension** — `Capability::VERIFICATION`
 
 > **Covers:** managed OTP (#29), multi-channel fallback (#30), silent network auth (#31), transaction binding (#32), in-app token (#33). Raw self-managed OTP (#34) needs *only* `SmsClientInterface::send()` and is not modelled here.
 > **Why hard-segregated:** managed verify (opaque code, provider stores & checks) is a fundamentally different contract from raw OTP. `start()` returns a rich result; `check()` distinguishes pending/approved/canceled/expired/max_attempts because login UIs branch on it. The recipient is widened beyond `PhoneNumber` (Twilio email channel). First-class `OPT_*` constants replace magic array keys.
@@ -585,7 +587,7 @@ final class VerificationChannel
 <?php
 namespace Psr\Sms;
 
-/** CAP_REDACT — Twilio empty-body redaction. */
+/** Capability::REDACT — Twilio empty-body redaction. */
 interface RedactableInterface
 {
     /**
@@ -594,7 +596,7 @@ interface RedactableInterface
     public function redact(string $messageId): bool;
 }
 
-/** CAP_ASYNC_BULK — Twilio Bulk operationId + poll-later. */
+/** Capability::ASYNC_BULK — Twilio Bulk operationId + poll-later. */
 interface AsyncBulkInterface
 {
     /**
@@ -616,7 +618,7 @@ interface BatchResultInterface
     public function getStatus(): string;
 }
 
-/** CAP_TOPIC_FANOUT — AWS SNS topic fan-out. */
+/** Capability::TOPIC_FANOUT — AWS SNS topic fan-out. */
 interface TopicPublishInterface
 {
     /**
@@ -626,7 +628,7 @@ interface TopicPublishInterface
     public function publishToTopic(string $topicTarget, MessageInterface $m): SmsResultInterface;
 }
 
-/** CAP_HLR_LOOKUP — MessageBird HLR. */
+/** Capability::HLR_LOOKUP — MessageBird HLR. */
 interface NumberLookupInterface
 {
     /**
@@ -635,7 +637,7 @@ interface NumberLookupInterface
     public function lookup(PhoneNumber $number): LookupResult;
 }
 
-/** CAP_COST_REPORT — async per-message cost. */
+/** Capability::COST_REPORT — async per-message cost. */
 interface CostReportInterface
 {
     /**
@@ -650,7 +652,7 @@ interface CostReportInterface
     public function getCosts(array $messageIds): array;
 }
 
-/** CAP_MESSAGE_FEEDBACK — AWS PutMessageFeedback / Sinch delivery_feedback. */
+/** Capability::MESSAGE_FEEDBACK — AWS PutMessageFeedback / Sinch delivery_feedback. */
 interface MessageFeedbackInterface
 {
     /**
@@ -660,7 +662,7 @@ interface MessageFeedbackInterface
     public function putFeedback(string $messageId, string $status): bool;
 }
 
-/** CAP_ACCOUNT_PREFS — AWS SNS account-level SMS attributes. */
+/** Capability::ACCOUNT_PREFS — AWS SNS account-level SMS attributes. */
 interface AccountPreferencesInterface
 {
     /** @return array */
@@ -668,7 +670,7 @@ interface AccountPreferencesInterface
     public function setSmsAttributes(array $attributes): void;
 }
 
-/** CAP_TEMPLATE_REGISTRY — India DLT / CN template submit + status. */
+/** Capability::TEMPLATE_REGISTRY — India DLT / CN template submit + status. */
 interface TemplateRegistryInterface
 {
     /**
@@ -706,7 +708,7 @@ interface SignatureVerifierInterface
 
 ### 4.10 `EventDestinationParserInterface` — grade: **extension**
 
-> **Covers:** push-only event ingestion (#59). AWS EUM v2 has no poll-by-id API; events arrive as SNS/Kinesis/CloudWatch records. Such providers advertise `CAP_STATUS_QUERY = false`.
+> **Covers:** push-only event ingestion (#59). AWS EUM v2 has no poll-by-id API; events arrive as SNS/Kinesis/CloudWatch records. Such providers return `supports(Capability::STATUS_QUERY) === false`.
 
 ```php
 <?php
@@ -767,19 +769,19 @@ interface MessageInterface
     public function getDeliveryReceiptRequested(): ?bool;
     /** @return int|null GSM message class 0-3 (0 = flash); null = default. */
     public function getMessageClass(): ?int;
-    /** @return bool Validate/estimate without dispatching; honored only when supports(CAP_DRY_RUN). */
+    /** @return bool Validate/estimate without dispatching; honored only when supports(Capability::DRY_RUN). */
     public function isDryRun(): bool;
     /** @return Money|null Per-message price ceiling; send fails if cost would exceed it. */
     public function getMaxPrice(): ?Money;
 
     // --- Rich / binary / template / multi-channel content -----------------
-    /** @return string[] MMS/rich media URLs (gated CAP_MMS). */
+    /** @return string[] MMS/rich media URLs (gated Capability::MMS). */
     public function getMediaUrls(): array;
-    /** @return BinaryContent|null UDH + protocol-id (gated CAP_BINARY). */
+    /** @return BinaryContent|null UDH + protocol-id (gated Capability::BINARY). */
     public function getBinary(): ?BinaryContent;
-    /** @return TemplateReference|null id + variables (gated CAP_TEMPLATE, exclusive with body). */
+    /** @return TemplateReference|null id + variables (gated Capability::TEMPLATE, exclusive with body). */
     public function getTemplate(): ?TemplateReference;
-    /** @return ChannelFallback|null Ordered multi-channel fallback (gated CAP_MULTI_CHANNEL_FALLBACK). */
+    /** @return ChannelFallback|null Ordered multi-channel fallback (gated Capability::MULTI_CHANNEL_FALLBACK). */
     public function getChannels(): ?ChannelFallback;
 
     // --- Compliance & escape hatch ---------------------------------------
@@ -1175,7 +1177,7 @@ final class Schedule
 
 ### 5.7 `BinaryContent`
 
-> Immutable. Hex body + optional UDH + TP-PID for OTA / WAP-push / concatenated binary. Gated by `CAP_BINARY`.
+> Immutable. Hex body + optional UDH + TP-PID for OTA / WAP-push / concatenated binary. Gated by `Capability::BINARY`.
 
 ```php
 <?php
@@ -1208,7 +1210,7 @@ final class BinaryContent
 
 ### 5.8 `TemplateReference`
 
-> Immutable. Template id + variable bindings (Twilio `ContentSid` + `ContentVariables`). Gated by `CAP_TEMPLATE`, mutually exclusive with a free-form body.
+> Immutable. Template id + variable bindings (Twilio `ContentSid` + `ContentVariables`). Gated by `Capability::TEMPLATE`, mutually exclusive with a free-form body.
 
 ```php
 <?php
@@ -1238,7 +1240,7 @@ final class TemplateReference
 
 ### 5.9 `ChannelFallback`
 
-> Immutable ordered list of channel names for multi-channel fallback (try RCS/WhatsApp, degrade to SMS). Gated by `CAP_MULTI_CHANNEL_FALLBACK`.
+> Immutable ordered list of channel names for multi-channel fallback (try RCS/WhatsApp, degrade to SMS). Gated by `Capability::MULTI_CHANNEL_FALLBACK`.
 
 ```php
 <?php
@@ -1884,16 +1886,16 @@ namespace Acme\Sms\Mitake;
 use Psr\Sms\CapabilityAwareInterface;
 
 // supports() returns true for exactly these:
-//   CAP_BULK              -> SmBulkSend (<=500/batch)
-//   CAP_STATUS_QUERY      -> SmQuery (<=100 msgids)
-//   CAP_DELIVERY_RECEIPT  -> GET callback to 'response' URL
-//   CAP_SCHEDULE          -> dlvtime
-//   CAP_CANCEL            -> SmCancel (<=100)
-//   CAP_BALANCE           -> SmQuery without msgid -> AccountPoint
-//   CAP_IDEMPOTENCY       -> clientid (12h dedup window)
-//   CAP_FLASH             -> false (Mitake has no class-0 toggle)
-//   CAP_INBOUND           -> false (one-way)
-//   CAP_VERIFICATION      -> false (raw OTP via send() only)
+//   Capability::BULK              -> SmBulkSend (<=500/batch)
+//   Capability::STATUS_QUERY      -> SmQuery (<=100 msgids)
+//   Capability::DELIVERY_RECEIPT  -> GET callback to 'response' URL
+//   Capability::SCHEDULE          -> dlvtime
+//   Capability::CANCEL            -> SmCancel (<=100)
+//   Capability::BALANCE           -> SmQuery without msgid -> AccountPoint
+//   Capability::IDEMPOTENCY       -> clientid (12h dedup window)
+//   Capability::FLASH             -> false (Mitake has no class-0 toggle)
+//   Capability::INBOUND           -> false (one-way)
+//   Capability::VERIFICATION      -> false (raw OTP via send() only)
 ```
 
 So the Mitake driver implements: `SmsClientInterface`, `CapabilityAwareInterface`, `BulkSmsClientInterface`, `DeliveryStatusQueryInterface`, `DeliveryReceiptParserInterface`, `SchedulableSmsClientInterface`, `BalanceInterface`. It does **NOT** implement `InboundMessageReceiverInterface` or `VerificationInterface`.
@@ -2072,7 +2074,7 @@ final class Gsm7
 
 - Two distinct concepts: **idempotency key** (`getIdempotencyKey()`, dedup of retries — Twilio `Idempotency-Key`, Mitake `clientid` with a 12-hour window returning `Duplicate=Y`) versus **client reference** (`getClientRef()`, a correlation tag echoed on the DLR — Vonage `client_ref`, ≤100 chars).
 - A Mitake driver maps `getIdempotencyKey()` → `clientid` and surfaces `Duplicate=Y` via `SmsResult::isDuplicate()`. Resending the same `clientid` inside 12h does **not** create a new dispatch.
-- Where a provider lacks native idempotency, the driver **MAY** emulate it client-side using the key, but **MUST** advertise `CAP_IDEMPOTENCY = false` if it cannot honour the dedup contract.
+- Where a provider lacks native idempotency, the driver **MAY** emulate it client-side using the key, but **MUST** advertise `Capability::IDEMPOTENCY = false` if it cannot honour the dedup contract.
 
 ### 11.6 Webhook authenticity
 
