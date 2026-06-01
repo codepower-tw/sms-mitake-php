@@ -35,3 +35,21 @@ jobs:
 
       - name: Run test suite
         run: composer test
+
+  coding-style:
+    name: Coding style
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: php-cs-fixer:3.95.3
+          coverage: none
+
+      - name: Check coding style
+        run: make cs-check
