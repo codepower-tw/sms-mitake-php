@@ -70,6 +70,27 @@ $results = $client->sendBulk([
 ]);
 ```
 
+### Check length & segments
+
+Estimate how a body will be billed and split before sending. GSM extension
+symbols (`^ { } \ [ ~ ] | €`) count as two characters, and any non-GSM character
+(Chinese, emoji, …) switches the whole message to the UCS-2 tier:
+
+```php
+$seg = (new Message('0912345678', 'Hello 你好'))->segmentation();
+
+$seg->encoding;      // SmsEncoding::Ucs2 (a Chinese char forces UCS-2)
+$seg->length;        // billed unit count
+$seg->segments;      // number of SMS parts
+$seg->isMultipart(); // true if more than one part
+$seg->remaining;     // free units left in the last part
+
+// Or measure any string directly:
+\CodePower\Mitake\Segmentation::measure('plain ascii')->encoding; // SmsEncoding::Gsm7
+```
+
+Per-segment sizes are the carrier standard: 160/153 for GSM, 70/67 for UCS-2.
+
 ### Query delivery status / balance
 
 ```php

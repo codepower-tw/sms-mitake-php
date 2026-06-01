@@ -56,6 +56,16 @@ final class Message
     }
 
     /**
+     * Measure how this message's body splits into SMS segments (and at what
+     * encoding), following Mitake's counting rules. Useful to warn before
+     * sending a multi-part or truncated message.
+     */
+    public function segmentation(): Segmentation
+    {
+        return Segmentation::measure($this->body);
+    }
+
+    /**
      * Return a copy with the client id set (used to assign bulk ids).
      */
     public function withClientId(string $clientId): self
