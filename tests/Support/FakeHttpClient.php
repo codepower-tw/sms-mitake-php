@@ -20,8 +20,7 @@ final class FakeHttpClient implements HttpClient
     public function __construct(
         private readonly string $responseBody = '',
         private readonly int $statusCode = 200
-    ) {
-    }
+    ) {}
 
     public function post(string $url, array $query = [], array $form = [], ?string $rawBody = null): HttpResponse
     {

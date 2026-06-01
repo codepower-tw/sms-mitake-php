@@ -9,7 +9,5 @@ namespace CodePower\Mitake\Result;
  */
 final class Balance
 {
-    public function __construct(public readonly int $points)
-    {
-    }
+    public function __construct(public readonly int $points) {}
 }

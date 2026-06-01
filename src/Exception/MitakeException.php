@@ -7,6 +7,4 @@ namespace CodePower\Mitake\Exception;
 /**
  * Base runtime exception for the Mitake client.
  */
-class MitakeException extends \RuntimeException implements MitakeExceptionInterface
-{
-}
+class MitakeException extends \RuntimeException implements MitakeExceptionInterface {}

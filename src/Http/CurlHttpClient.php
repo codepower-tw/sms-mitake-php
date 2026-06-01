@@ -22,8 +22,7 @@ final class CurlHttpClient implements HttpClient
         private readonly int $connectTimeout = 10,
         private readonly int $timeout = 30,
         private readonly string $userAgent = 'codepower-sms-mitake/1.0'
-    ) {
-    }
+    ) {}
 
     public function post(string $url, array $query = [], array $form = [], ?string $rawBody = null): HttpResponse
     {

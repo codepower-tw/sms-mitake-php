@@ -58,9 +58,7 @@ final class StatusCode
         'z' => '查無資料',
     ];
 
-    public function __construct(public readonly string $code)
-    {
-    }
+    public function __construct(public readonly string $code) {}
 
     /** A letter code (or `*`) means a send/account error. */
     public function isError(): bool

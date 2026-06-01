@@ -31,8 +31,7 @@ final class DeliveryReceipt
         public readonly ?\DateTimeImmutable $scheduledAt = null,
         public readonly ?\DateTimeImmutable $doneAt = null,
         public readonly array $raw = []
-    ) {
-    }
+    ) {}
 
     /**
      * Build a receipt from callback request parameters (e.g. $_GET).

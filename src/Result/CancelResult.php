@@ -19,8 +19,7 @@ final class CancelResult
     public function __construct(
         public readonly string $msgId,
         public readonly StatusCode $statusCode
-    ) {
-    }
+    ) {}
 
     /** The scheduled message was successfully cancelled (status code 9). */
     public function isCancelled(): bool

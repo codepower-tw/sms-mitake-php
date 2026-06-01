@@ -22,6 +22,5 @@ final class StatusResult
         public readonly StatusCode $statusCode,
         public readonly ?\DateTimeImmutable $statusTime = null,
         public readonly ?int $smsPoint = null
-    ) {
-    }
+    ) {}
 }

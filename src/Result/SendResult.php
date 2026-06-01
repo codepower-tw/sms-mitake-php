@@ -26,8 +26,7 @@ final class SendResult
         public readonly bool $duplicate = false,
         public readonly ?int $smsPoint = null,
         public readonly ?string $clientId = null
-    ) {
-    }
+    ) {}
 
     /** The message was accepted by Mitake (has a serial and no error code). */
     public function isAccepted(): bool
