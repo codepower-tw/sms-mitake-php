@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Verify compatibility with PHP 8.5 in CI.
+
 ## [0.1.0] - 2026-06-01
 
 Initial release.
