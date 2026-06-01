@@ -1,5 +1,8 @@
 # sms-mitake-php
 
+[![CI](https://github.com/codepower-tw/sms-mitake-php/actions/workflows/ci.yml/badge.svg)](https://github.com/codepower-tw/sms-mitake-php/actions/workflows/ci.yml)
+[![Security](https://github.com/codepower-tw/sms-mitake-php/actions/workflows/security.yml/badge.svg)](https://github.com/codepower-tw/sms-mitake-php/actions/workflows/security.yml)
+
 A PHP client for the Mitake (三竹簡訊) SMS HTTP API.
 
 Covers single send, bulk send, delivery-status and balance queries,
