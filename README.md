@@ -126,4 +126,9 @@ composer test
 
 ## License
 
-[MIT](LICENSE) © CodePower Ltd.
+[MIT](LICENSE) © CodePower Ltd. — applies to this library's own source code.
+
+The Mitake API specification bundled under [`docs/`](docs/) is © Mitake Inc.
+(三竹資訊股份有限公司), all rights reserved, and is redistributed from Mitake's
+public [download page](https://sms.mitake.com.tw/common/header/download.jsp) for
+convenience. It is **not** covered by the MIT license.
