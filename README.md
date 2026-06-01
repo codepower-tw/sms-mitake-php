@@ -1,5 +1,8 @@
 # sms-mitake-php
 
+[![Latest Version](https://img.shields.io/packagist/v/codepower/sms-mitake.svg)](https://packagist.org/packages/codepower/sms-mitake)
+[![Total Downloads](https://img.shields.io/packagist/dt/codepower/sms-mitake.svg)](https://packagist.org/packages/codepower/sms-mitake)
+[![License](https://img.shields.io/packagist/l/codepower/sms-mitake.svg)](https://packagist.org/packages/codepower/sms-mitake)
 [![CI](https://github.com/codepower-tw/sms-mitake-php/actions/workflows/ci.yml/badge.svg)](https://github.com/codepower-tw/sms-mitake-php/actions/workflows/ci.yml)
 [![Security](https://github.com/codepower-tw/sms-mitake-php/actions/workflows/security.yml/badge.svg)](https://github.com/codepower-tw/sms-mitake-php/actions/workflows/security.yml)
 
