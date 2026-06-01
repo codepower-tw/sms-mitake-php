@@ -1,0 +1,28 @@
+# Normalize line endings on commit; check out with native EOLs.
+* text=auto eol=lf
+
+# Explicit text files (consistent diffs/merges across platforms).
+*.php       text diff=php
+*.json      text
+*.md        text
+*.xml       text
+*.dist      text
+*.yml       text
+Makefile    text
+*.pdf       binary
+
+# Files excluded from `composer archive` / Packagist dist downloads.
+# Consumers of this library don't need dev tooling, tests, CI config,
+# the API spec, or the local example runner.
+/.github/                export-ignore
+/docs/                   export-ignore
+/tests/                  export-ignore
+/.gitattributes          export-ignore
+/.gitignore              export-ignore
+/.php-cs-fixer.dist.php   export-ignore
+/.php-cs-fixer.cache     export-ignore
+/.phpunit.cache/         export-ignore
+/.phpunit.result.cache   export-ignore
+/phpunit.xml.dist        export-ignore
+/Makefile                export-ignore
+/example.php             export-ignore
