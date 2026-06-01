@@ -39,6 +39,20 @@ final class Message
         if ($body === '') {
             throw new Exception\InvalidMessageException('Message body must not be empty.');
         }
+
+        // SmBulkSend serialises each message into a positional record whose
+        // fields are joined by "$$" and whose records are separated by newlines,
+        // sent as a raw (non-URL-encoded) body. A line break or "$$" in any of
+        // these structural fields would smuggle extra fields, or a whole new
+        // record (an arbitrary recipient + body), into the batch. Reject them at
+        // the boundary so neither the bulk nor single-send path can be injected.
+        foreach (['to' => $to, 'destName' => $destName, 'clientId' => $clientId, 'callbackUrl' => $callbackUrl] as $field => $value) {
+            if ($value !== null && preg_match('/[\r\n]|\$\$/', $value) === 1) {
+                throw new Exception\InvalidMessageException(
+                    sprintf('Message field "%s" must not contain line breaks or the "$$" delimiter.', $field)
+                );
+            }
+        }
     }
 
     /**
