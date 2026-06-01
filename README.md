@@ -108,6 +108,16 @@ header('Content-Type: text/plain');
 echo $receipt->acknowledge();   // "magicid=sms_gateway_rpack\nmsgid=...\n"
 ```
 
+## Security
+
+**Bulk send credentials travel in the URL.** `SmBulkSend` carries its record
+payload as the request body, so Mitake requires the `username` and `password` in
+the URL query string (every other call sends them in the POST body). TLS protects
+them in transit, but query strings are routinely written to access logs and
+proxies. Make sure any HTTP request logging on your side does not capture full
+Mitake URLs for `sendBulk` calls. This library never includes the request URL in
+its exception messages.
+
 ## Testing
 
 ```bash

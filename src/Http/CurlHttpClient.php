@@ -48,6 +48,9 @@ final class CurlHttpClient implements HttpClient
 
         $responseBody = curl_exec($handle);
         if ($responseBody === false) {
+            // Do NOT interpolate $url into this message: for SmBulkSend it
+            // carries the account credentials in its query string, and exception
+            // messages frequently end up in logs. curl_error() never contains it.
             throw new TransportException(
                 sprintf('cURL request to Mitake failed (%d): %s', curl_errno($handle), curl_error($handle))
             );

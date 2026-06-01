@@ -71,6 +71,13 @@ final class Client
      *
      * Every message MUST carry a client id (it heads each result block).
      *
+     * Security: SmBulkSend carries the record payload as the request body, so —
+     * unlike the other endpoints, which send credentials in the POST body —
+     * Mitake requires the username and password to ride in the URL query string.
+     * They are protected in transit by TLS, but URL query strings are commonly
+     * recorded by access logs and proxies. Ensure any request logging on your
+     * side does not capture full Mitake URLs for this call.
+     *
      * @param Message[] $messages
      * @param string|null $objectId Optional batch name (objectID).
      * @return SendResult[] In request order.
